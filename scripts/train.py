@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+
 
 def train(
     model,
@@ -12,6 +14,8 @@ def train(
     device=None,
     early_stop=False,
 ):
+    optimizer = torch.optim.AdamW(model.parameters())
+    loss_function = torch.nn.BCEWithLogitsLoss()
     if device is None:
         # You can pass in a device or we will default to using
         # the gpu. Feel free to try training on the cpu to see
@@ -28,13 +32,8 @@ def train(
     model = model.to(device)
 
     # iterate over the batches of this epoch
-    for batch_id, (x, y, *w) in enumerate(loader):
+    for batch_id, (x, y) in enumerate(loader):
         # move input and target to the active device (either cpu or gpu)
-        if len(w) > 0:
-            w = w[0]
-            w = w.to(device)
-        else:
-            w = None
         x, y = x.to(device), y.to(device)
 
         # zero the gradients for this iteration
@@ -42,13 +41,11 @@ def train(
 
         # apply model and calculate loss
         prediction = model(x)
-        assert prediction.shape == y.shape, (prediction.shape, y.shape)
+        if prediction.shape != y.shape:
+            y = crop(y, prediction)
         if y.dtype != prediction.dtype:
             y = y.type(prediction.dtype)
         loss = loss_function(prediction, y)
-        if w is not None:
-            weighted_loss = loss * w
-            loss = torch.mean(weighted_loss)
 
         # backpropagate the loss and adjust the parameters
         loss.backward()
