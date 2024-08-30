@@ -17,5 +17,6 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
-    # Add your requirements here
+    "torch",
+    "numpy",
 ]

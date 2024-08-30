@@ -3,6 +3,20 @@ import numpy as np
 import torch.nn as nn
 from train import DiceCoefficient
 
+class f_beta(nn.Module):
+    def __init__(self, eps=1e-6):
+        super().__init__()
+        self.eps = eps
+    def forward(beta : float,gt, pred):
+        tp = np.sum((gt*pred))
+        fp = np.sum(pred)- tp
+        fn = np.sum(gt) - tp
+        beta_term = 1 + np.power(beta,2)
+        numerator = beta_term * tp
+        denominator = beta_term * tp + np.power(beta,2)*fp + fn
+        return numerator/ denominator
+    
+
 def validate(
     model,
     loader,
@@ -12,7 +26,6 @@ def validate(
     device=None,
 ):
     loss_function = DiceCoefficient()
-    metric = ...
 
     if device is None:
         # You can pass in a device or we will default to using
