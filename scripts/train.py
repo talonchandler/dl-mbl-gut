@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
-from PIL import Image
+
 
 class DiceCoefficient(nn.Module):
     def __init__(self, eps=1e-6):
@@ -15,6 +15,16 @@ class DiceCoefficient(nn.Module):
         union = (prediction*prediction).sum() + (target*target).sum()
         return 2 * intersection / union.clamp(min=self.eps)
 
+def center_crop(x, y):
+    """Center-crop x to match spatial dimensions given by y."""
+
+    x_target_size = x.size()[:2] + y.size()[2:]
+
+    offset = tuple((a - b) // 2 for a, b in zip(x.size(), x_target_size))
+
+    slices = tuple(slice(o, o + s) for o, s in zip(offset, x_target_size))
+
+    return x[slices]
 
 def train(
     model,
@@ -55,7 +65,7 @@ def train(
         # apply model and calculate loss
         prediction = model(x)
         if prediction.shape != y.shape:
-            y = crop(y, prediction)
+            y = center_crop(y, prediction)
         if y.dtype != prediction.dtype:
             y = y.type(prediction.dtype)
         loss = loss_function(prediction, y)
