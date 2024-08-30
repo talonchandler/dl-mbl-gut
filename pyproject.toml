@@ -17,6 +17,10 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "torch",
-    "numpy",
+    torch
+    torchvision
+    numpy
+    matplotlib
+    PIL
+    os
 ]
