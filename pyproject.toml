@@ -19,8 +19,9 @@ dynamic = ["version"]
 dependencies = [
     "torch",
     "torchvision",
-    "numpy",
+    "numpy==1.26.0",
     "matplotlib",
-    "pillow"
+    "pillow",
     "iohub",
+    "monai",
 ]
