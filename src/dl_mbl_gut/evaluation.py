@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
-from train import DiceCoefficient
+from dl_mbl_gut.train import DiceCoefficient
 
 class f_beta(nn.Module):
     def __init__(self, eps=1e-6):
