@@ -6,7 +6,7 @@ from iohub import open_ome_zarr
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from monai.transforms import Compose, RandRotate, RandSpatialCrop, RandCropByPosNegLabel
+from monai.transforms import RandRotate, RandCropByPosNegLabel
 
 
 class GutDataset(Dataset):
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     base_path = Path("/mnt/efs/dlmbl/G-bs/data/")
     dataset_path = Path("all-downsample-2x.zarr")
     useful_chunk_path = base_path / dataset_path.with_suffix(".csv")
-    useful_chunk_path = base_path / "all-downsample-2x-masks-only.csv"
+    # useful_chunk_path = base_path / "all-downsample-2x-masks-only.csv"
 
     transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
 
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     # For finding useful chunks
     # dataset._find_useful_chunks(useful_chunk_path) # this will take a while, call once to save keys
 
-    # For viewing random patches
+    # # For viewing random patches
     # import napari
     # import random
 
