@@ -1,7 +1,0 @@
-README.md
-pyproject.toml
-src/dl_mbl_gut/__init__.py
-src/dl_mbl_gut.egg-info/PKG-INFO
-src/dl_mbl_gut.egg-info/SOURCES.txt
-src/dl_mbl_gut.egg-info/dependency_links.txt
-src/dl_mbl_gut.egg-info/top_level.txt
