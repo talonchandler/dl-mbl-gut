@@ -20,9 +20,9 @@ class GutDataset(Dataset):
         split_mode: Literal["train", "val", "test", None] = "train",
         data_channel_name: str = "BF_fluor_path",
         mask_channel_name: str = "label",
-        z_split_width=1,
-        x_split_width=1024,
-        patch_size=256,
+        z_split_width: int = 0,
+        x_split_width: int = 1024,
+        patch_size: int = 256,
         transform=None,
         img_transform=None,
         useful_chunk_path=None,
@@ -95,17 +95,26 @@ class GutDataset(Dataset):
     def __getitem__(self, idx: int):
         position_key, z_index, x_start, x_end = self.item_keys[idx]
 
+        # Always get a valid z range
+        z_shape = self.dataset[position_key][0].shape[-3]
+        z_min = np.max([0, z_index - self.z_split_width])
+        z_max = np.min([z_shape, z_index + self.z_split_width + 1])
+        if z_min == 0:
+            z_max = 2 * self.z_split_width + 1
+        if z_max == z_shape:
+            z_max = z_shape - (2 * self.z_split_width + 1)
+
         data = self.dataset[position_key][0][
             0,
             self.data_channel_index,
-            z_index : (z_index + self.z_split_width),
+            z_min:z_max,
             :,
             x_start:x_end,
         ][None]
         mask = self.dataset[position_key][0][
             0,
             self.mask_channel_index,
-            z_index : (z_index + self.z_split_width),
+            z_min:z_max,
             :,
             x_start:x_end,
         ][None]
@@ -121,7 +130,10 @@ class GutDataset(Dataset):
             mask = self.img_transform
 
         crop = RandCropByPosNegLabel(
-            (1, self.patch_size, self.patch_size), None, pos=0.8, neg=0.2
+            (2 * self.z_split_width + 1, self.patch_size, self.patch_size),
+            None,
+            pos=0.8,
+            neg=0.2,
         )
         crop.set_random_state(seed)
         data = crop(data, label=mask)
@@ -162,7 +174,7 @@ if __name__ == "__main__":
         base_path / dataset_path,
         split_path=split_path,
         split_mode="val",
-        z_split_width=1,
+        z_split_width=2,
         useful_chunk_path=useful_chunk_path,
         transform=transform,
     )
