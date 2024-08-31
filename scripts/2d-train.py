@@ -43,4 +43,11 @@ model = model.UNet(
 
 n_epochs = 10
 for epoch in range(n_epochs):
-    train.train(model, dataloader, epoch, tb_logger=logger, device="cuda")
+    train.train(
+        model,
+        dataloader,
+        epoch,
+        tb_logger=logger,
+        device="cuda",
+        loss=torch.nn.BCELoss(),
+    )

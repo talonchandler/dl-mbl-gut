@@ -37,9 +37,9 @@ def train(
     tb_logger=None,
     device=None,
     early_stop=False,
+    loss_function=nn.BCELoss(),
 ):
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.004)
-    loss_function = nn.BCELoss() #DiceCoefficient()
 
     if device is None:
         # You can pass in a device or we will default to using
