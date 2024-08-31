@@ -39,17 +39,13 @@ class NucleiDataset(Dataset):
         img_path = os.path.join(
         self.root_dir, 'raw/', self.samples[idx] + '_raw.tiff')
         image = TiffReader(img_path).data[1,:,:,:]
-        print('opened ' + img_path)
         image = image/np.max(image)
         image = self.inp_transforms(image[np.newaxis,...])
-        print(type(image))
         mask_path = os.path.join(
             self.root_dir, 'seg/', self.samples[idx] + '_segmented.tiff')
-        print('opened '+ mask_path)
         mask = TiffReader(mask_path).data[0,:,:,:]
         mask[mask>0] = 1
         mask = transforms.ToTensor()(mask[np.newaxis,...].astype(np.float32))
-        print(mask.shape)
         seed = np.random.randint(5000)
         if self.transform is not None:
             # Note: using seeds to ensure the same random transform is applied to
@@ -60,6 +56,7 @@ class NucleiDataset(Dataset):
             mask = self.transform(mask)
         if self.img_transform is not None:
             image = self.img_transform(image)
+        print('loaded one image')
         return image, mask
 
 
