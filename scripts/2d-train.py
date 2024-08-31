@@ -49,5 +49,5 @@ for epoch in range(n_epochs):
         epoch,
         tb_logger=logger,
         device="cuda",
-        loss=torch.nn.BCELoss(),
+        loss_function=torch.nn.BCELoss(),
     )
