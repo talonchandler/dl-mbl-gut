@@ -51,6 +51,7 @@ model = model.UNet(
 )
 
 validation_metric = evaluation.f_beta(beta=1)
+loss = train.AddLossFuncs(train.DiceCoefficient, torch.nn.BCELoss)
 
 n_epochs = 100
 for epoch in range(n_epochs):
@@ -60,7 +61,7 @@ for epoch in range(n_epochs):
         epoch,
         tb_logger=logger,
         device="cuda",
-        loss_function=torch.nn.BCELoss(),
+        loss_function= loss,
     )
 
     evaluation.validate(
