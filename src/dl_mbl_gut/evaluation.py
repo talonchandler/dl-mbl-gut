@@ -1,6 +1,7 @@
 import torch
-import numpy as np
 import torch.nn as nn
+
+import numpy as np
 from dl_mbl_gut.train import DiceCoefficient, center_crop
 
 
