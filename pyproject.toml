@@ -24,7 +24,7 @@ dependencies = [
     "matplotlib",
     "pillow",
     "iohub",
-    "aicsimageio",
     "monai",
+    "aicsimageio",
     "pandas"
 ]
