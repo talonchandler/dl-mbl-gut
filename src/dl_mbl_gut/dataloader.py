@@ -7,7 +7,13 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 from typing import Literal
 
-from monai.transforms import RandRotate, RandCropByPosNegLabel, NormalizeIntensity
+from monai.transforms import (
+    RandRotate,
+    RandCropByPosNegLabel,
+    NormalizeIntensity,
+    CenterSpatialCrop,
+)
+import time
 
 
 class GutDataset(Dataset):
@@ -96,6 +102,7 @@ class GutDataset(Dataset):
 
         # Always get a valid z range
         z_shape = self.dataset[position_key][0].shape[-3]
+        z_width = 2 * self.z_split_width + 1
         z_min = np.max([0, z_index - self.z_split_width])
         z_max = np.min([z_shape, z_index + self.z_split_width + 1])
         if z_min == 0:
@@ -119,6 +126,19 @@ class GutDataset(Dataset):
         ][None]
         seed = np.random.randint(0, 100)
 
+        outer_patch_size = np.ceil(self.patch_size * np.sqrt(2))
+        crop = RandCropByPosNegLabel(
+            (z_width, outer_patch_size, outer_patch_size),
+            None,
+            pos=0.8,
+            neg=0.2,
+        )
+
+        crop.set_random_state(seed)
+        data = crop(data, label=mask)[0]
+        crop.set_random_state(seed)
+        mask = crop(mask, label=mask)[0]
+
         if self.transform is not None:
             self.transform.set_random_state(seed)
             data = self.transform(data)
@@ -128,16 +148,10 @@ class GutDataset(Dataset):
             data = self.img_transform(data)
             mask = self.img_transform
 
-        crop = RandCropByPosNegLabel(
-            (2 * self.z_split_width + 1, self.patch_size, self.patch_size),
-            None,
-            pos=0.8,
-            neg=0.2,
-        )
-        crop.set_random_state(seed)
-        data = crop(data, label=mask)
-        crop.set_random_state(seed)
-        mask = crop(mask, label=mask)
+        # Crop inner path
+        center_crop = CenterSpatialCrop((z_width, self.patch_size, self.patch_size))
+        data = center_crop(data)
+        mask = center_crop(mask)
 
         # Normalize the data
         mean = self.dataset[position_key].zattrs["mean"]
@@ -145,10 +159,6 @@ class GutDataset(Dataset):
 
         data = NormalizeIntensity(subtrahend=mean, divisor=std)(data[0])
         mask = mask[0]
-
-        if self.ndim == 2:
-            data = data.squeeze(-3)
-            mask = mask.squeeze(-3)
 
         return data, mask
 
@@ -161,13 +171,12 @@ class GutDataset(Dataset):
 
 if __name__ == "__main__":
     base_path = Path("/mnt/efs/dlmbl/G-bs/data/")
-    dataset_path = Path("all-downsample-2x.zarr")
-    useful_chunk_path = base_path / dataset_path.with_suffix(".csv")
+    # dataset_path = Path("all-downsample-2x.zarr")
+    dataset_path = Path("all-downsample-2x-rechunked.zarr")
+    useful_chunk_path = base_path / Path("all-downsample-2x.csv")
     # useful_chunk_path = base_path / "all-downsample-2x-masks-only.csv"
 
-    split_path = base_path / dataset_path.with_stem(
-        dataset_path.stem + "-split"
-    ).with_suffix(".csv")
+    split_path = base_path / Path("all-downsample-2x-split.csv")
 
     transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
 
@@ -180,6 +189,24 @@ if __name__ == "__main__":
         transform=transform,
     )
     dataset.info()
+
+    from torch.utils.data import DataLoader
+
+    batch_size = 13
+    dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=4)
+
+    total_time = 0
+    num_pairs = 2
+    start_time = time.time()
+    for i, (x, y) in enumerate(dataloader):
+        if i == num_pairs:
+            break
+
+    end_time = time.time()
+    total_time += end_time - start_time
+
+    average_load_time = total_time / (batch_size * num_pairs)
+    print(f"Average load time per pair: {average_load_time:.2f} seconds")
 
     # For finding useful chunks
     # dataset._find_useful_chunks(useful_chunk_path) # this will take a while, call once to save keys
