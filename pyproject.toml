@@ -29,6 +29,12 @@ dependencies = [
 ]
 =======
     "aicsimageio",
+<<<<<<< HEAD
     "monai"
 ]
 >>>>>>> 4940777 (edits to dataloader_avl.py)
+=======
+    "monai",
+    "pandas"
+]
+>>>>>>> eb35a8d (added comma to toml)
