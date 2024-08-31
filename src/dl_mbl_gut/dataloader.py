@@ -160,10 +160,6 @@ class GutDataset(Dataset):
         data = NormalizeIntensity(subtrahend=mean, divisor=std)(data[0])
         mask = mask[0]
 
-        if self.ndim == 2:
-            data = data.squeeze(-3)
-            mask = mask.squeeze(-3)
-
         return data, mask
 
     def info(self):

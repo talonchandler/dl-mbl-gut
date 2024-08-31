@@ -17,7 +17,7 @@ split_path = base_path / Path("all-downsample-2x-split.csv")
 useful_chunk_path = base_path / Path("all-downsample-2x-masks-only.csv")  # everything
 
 runs_path = Path("/mnt/efs/dlmbl/G-bs/runs/")
-logger = SummaryWriter(runs_path / "2d-test-val-split")
+logger = SummaryWriter(runs_path / "2d-test-val-split-fast-load")
 
 transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
 
@@ -25,6 +25,7 @@ train_dataset, val_dataset = [
     dataloader.GutDataset(
         dataset_path,
         split_path,
+        z_split_width=0,
         split_mode=split_mode,
         useful_chunk_path=useful_chunk_path,
         transform=transform,
@@ -61,7 +62,7 @@ for epoch in range(n_epochs):
         device="cuda",
         loss_function=torch.nn.BCELoss(),
     )
-    
+
     evaluation.validate(
         model,
         val_dataloader,
