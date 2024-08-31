@@ -192,7 +192,7 @@ if __name__ == "__main__":
 
     from torch.utils.data import DataLoader
 
-    batch_size = 10
+    batch_size = 13
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=4)
 
     total_time = 0
