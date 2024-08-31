@@ -171,7 +171,8 @@ if __name__ == "__main__":
     dataset.info()
 
     total_time = 0
-    for i in range(25):
+    num_pairs = 25
+    for i in range(num_pairs):
         start_time = time.time()
         data, mask = dataset[i]
         end_time = time.time()
