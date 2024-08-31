@@ -6,7 +6,7 @@ from iohub import open_ome_zarr
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from monai.transforms import RandRotate, RandCropByPosNegLabel
+from monai.transforms import RandRotate, RandCropByPosNegLabel, NormalizeIntensity
 
 
 class GutDataset(Dataset):
@@ -18,9 +18,11 @@ class GutDataset(Dataset):
         mask_channel_name="label",
         z_split_width=1,
         x_split_width=1024,
+        patch_size=256,
         transform=None,
         img_transform=None,
         useful_chunk_path=None,
+        ndim=3,
     ):
         self.root_dir = root_dir
         self.data_channel_name = data_channel_name
@@ -29,8 +31,10 @@ class GutDataset(Dataset):
         self.positions = [x for x in self.dataset.positions()]
         self.x_split_width = x_split_width
         self.z_split_width = z_split_width
+        self.patch_size = patch_size
         self.transform = transform
         self.img_transform = img_transform
+        self.ndim = ndim
 
         self.data_channel_index = self.dataset.get_channel_index(data_channel_name)
         self.mask_channel_index = self.dataset.get_channel_index(mask_channel_name)
@@ -100,11 +104,24 @@ class GutDataset(Dataset):
             data = self.img_transform(data)
             mask = self.img_transform
 
-        crop = RandCropByPosNegLabel((1, 512, 512), None, pos=0.8, neg=0.2)
+        crop = RandCropByPosNegLabel(
+            (1, self.patch_size, self.patch_size), None, pos=0.8, neg=0.2
+        )
         crop.set_random_state(seed)
         data = crop(data, label=mask)
         crop.set_random_state(seed)
         mask = crop(mask, label=mask)
+
+        # Normalize the data
+        mean = self.dataset[position_key].zattrs["mean"]
+        std = self.dataset[position_key].zattrs["std"]
+
+        data = NormalizeIntensity(subtrahend=mean, divisor=std)(data[0])
+        mask = mask[0]
+
+        if self.ndim == 2:
+            data = data.squeeze(-3)
+            mask = mask.squeeze(-3)
 
         return data, mask
 

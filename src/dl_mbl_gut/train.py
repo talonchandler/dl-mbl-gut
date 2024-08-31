@@ -11,9 +11,10 @@ class DiceCoefficient(nn.Module):
     # the dice coefficient of two sets represented as vectors a, b can be
     # computed as (2 *|a b| / (a^2 + b^2))
     def forward(self, prediction, target):
-        intersection = (prediction*target).sum()
-        union = (prediction*prediction).sum() + (target*target).sum()
-        return 2 * intersection / union.clamp(min=self.eps)
+        intersection = (prediction * target).sum()
+        union = (prediction * prediction).sum() + (target * target).sum()
+        return 1 - (2 * intersection / union.clamp(min=self.eps))
+
 
 def center_crop(x, y):
     """Center-crop x to match spatial dimensions given by y."""
@@ -26,6 +27,7 @@ def center_crop(x, y):
 
     return x[slices]
 
+
 def train(
     model,
     loader,
@@ -36,8 +38,8 @@ def train(
     device=None,
     early_stop=False,
 ):
-    optimizer = torch.optim.AdamW(model.parameters(), lr = .004)
-    loss_function = DiceCoefficient()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.004)
+    loss_function = nn.BCELoss() #DiceCoefficient()
 
     if device is None:
         # You can pass in a device or we will default to using
@@ -64,11 +66,14 @@ def train(
 
         # apply model and calculate loss
         prediction = model(x)
+        print(y.shape, prediction.shape)
         if prediction.shape != y.shape:
             y = center_crop(y, prediction)
         if y.dtype != prediction.dtype:
             y = y.type(prediction.dtype)
         loss = loss_function(prediction, y)
+
+        print(f"Prediction min: {prediction.min()}, max: {prediction.max()}")
 
         # backpropagate the loss and adjust the parameters
         loss.backward()
