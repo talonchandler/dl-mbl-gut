@@ -16,7 +16,8 @@ dataset_path = base_path / Path("all-downsample-2x.zarr")
 split_path = base_path / Path("all-downsample-2x-split.csv")
 useful_chunk_path = base_path / Path("all-downsample-2x-masks-only.csv")  # everything
 
-logger = SummaryWriter("runs/Unet")
+runs_path = Path("/mnt/efs/dlmbl/G-bs/runs/")
+logger = SummaryWriter(runs_path / "2d-test-val-split")
 
 transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
 
@@ -30,7 +31,7 @@ train_dataset, val_dataset = [
         patch_size=428,
         ndim=2,
     )
-    for split_mode in ["train", "val"]
+    for split_mode in ["train", "test"]
 ]
 
 train_dataloader = DataLoader(train_dataset, batch_size=10, shuffle=True)
@@ -48,13 +49,27 @@ model = model.UNet(
     ndim=2,
 )
 
+validation_metric = evaluation.f_beta(beta=1)
+
+
+print("HERE1", len(train_dataset), len(val_dataset))
+print("HERE", len(train_dataloader), len(val_dataloader))
 n_epochs = 10
 for epoch in range(n_epochs):
     train.train(
         model,
-        dataloader,
+        train_dataloader,
         epoch,
         tb_logger=logger,
         device="cuda",
         loss_function=torch.nn.BCELoss(),
+    )
+    
+    evaluation.validate(
+        model,
+        val_dataloader,
+        metric=validation_metric,
+        step=epoch * len(train_dataloader),
+        tb_logger=logger,
+        device="cuda",
     )

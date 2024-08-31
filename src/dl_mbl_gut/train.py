@@ -39,7 +39,7 @@ def train(
     early_stop=False,
     loss_function=nn.BCELoss(),
 ):
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.004)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 
     if device is None:
         # You can pass in a device or we will default to using
@@ -73,7 +73,7 @@ def train(
             y = y.type(prediction.dtype)
         loss = loss_function(prediction, y)
 
-        print(f"Prediction min: {prediction.min()}, max: {prediction.max()}")
+        print(f"Prediction min: {prediction.min():.3f}, max: {prediction.max():.3f}")
 
         # backpropagate the loss and adjust the parameters
         loss.backward()

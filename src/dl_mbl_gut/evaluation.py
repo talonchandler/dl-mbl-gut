@@ -1,21 +1,24 @@
 import torch
 import numpy as np
 import torch.nn as nn
-from dl_mbl_gut.train import DiceCoefficient
+from dl_mbl_gut.train import DiceCoefficient, center_crop
+
 
 class f_beta(nn.Module):
-    def __init__(self, eps=1e-6):
+    def __init__(self, beta: float, eps=1e-6):
         super().__init__()
         self.eps = eps
-    def forward(beta : float,gt, pred):
-        tp = np.sum((gt*pred))
-        fp = np.sum(pred)- tp
+        self.beta = beta
+
+    def forward(self, gt, pred):
+        tp = np.sum((gt * pred))
+        fp = np.sum(pred) - tp
         fn = np.sum(gt) - tp
-        beta_term = 1 + np.power(beta,2)
+        beta_term = 1 + np.power(self.beta, 2)
         numerator = beta_term * tp
-        denominator = beta_term * tp + np.power(beta,2)*fp + fn
-        return numerator/ denominator
-    
+        denominator = beta_term * tp + np.power(self.beta, 2) * fp + fn
+        return numerator / denominator
+
 
 def validate(
     model,
@@ -48,12 +51,15 @@ def validate(
     with torch.no_grad():
         # iterate over validation loader and update loss and metric values
         for x, y in loader:
+            print(x.shape, y.shape)
             x, y = x.to(device), y.to(device)
             prediction = model(x)
             if y.dtype != prediction.dtype:
                 y = y.type(prediction.dtype)
-            val_loss += loss_function(prediction,y).item()
-            val_metric += metric(prediction > .5, y).item()
+            if prediction.shape != y.shape:
+                y = center_crop(y, prediction)
+            val_loss += loss_function(prediction, y).item()
+            val_metric += metric(prediction > 0.5, y).item()
 
     # normalize loss and metric
     val_loss /= len(loader)
