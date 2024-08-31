@@ -17,7 +17,7 @@ split_path = base_path / Path("all-downsample-2x-split.csv")
 useful_chunk_path = base_path / Path("all-downsample-2x-masks-only.csv")  # everything
 
 runs_path = Path("/mnt/efs/dlmbl/G-bs/runs/")
-logger = SummaryWriter(runs_path / "2d-test-val-split")
+logger = SummaryWriter(runs_path / "2d-test-weighted-bce-dice")
 
 transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
 
@@ -50,6 +50,7 @@ model = model.UNet(
 )
 
 validation_metric = evaluation.f_beta(beta=1)
+loss = train.AddLossFuncs(train.DiceCoefficient, torch.nn.BCELoss)
 
 n_epochs = 100
 for epoch in range(n_epochs):
@@ -59,7 +60,7 @@ for epoch in range(n_epochs):
         epoch,
         tb_logger=logger,
         device="cuda",
-        loss_function=torch.nn.BCELoss(),
+        loss_function= loss,
     )
     
     evaluation.validate(

@@ -2,6 +2,16 @@ import torch
 import numpy as np
 import torch.nn as nn
 
+class AddLossFuncs(nn.Module):
+    def __init__(self, loss1, loss2):
+        super().__init__()
+        self.loss1 = loss1()
+        self.loss2 = loss2()
+
+    def forward(self, prediction, target):
+        val1 = self.loss1(prediction,target)
+        val2 = self.loss2(prediction,target)
+        return val1 + val2
 
 class DiceCoefficient(nn.Module):
     def __init__(self, eps=1e-6):
