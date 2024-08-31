@@ -17,6 +17,7 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
+    "tensorboard",
     "torch",
     "torchvision",
     "numpy==1.26.0",
