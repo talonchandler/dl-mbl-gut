@@ -150,13 +150,11 @@ class GutDataset(Dataset):
 
 if __name__ == "__main__":
     base_path = Path("/mnt/efs/dlmbl/G-bs/data/")
-    dataset_path = Path("all-downsample-2x.zarr")
-    useful_chunk_path = base_path / dataset_path.with_suffix(".csv")
+    dataset_path = Path("all-downsample-2x-rechunked.zarr")
+    useful_chunk_path = base_path / Path("all-downsample-2x.csv")
     # useful_chunk_path = base_path / "all-downsample-2x-masks-only.csv"
 
-    split_path = base_path / dataset_path.with_stem(
-        dataset_path.stem + "-split"
-    ).with_suffix(".csv")
+    split_path = base_path / Path("all-downsample-2x-split.csv")
 
     transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
 
@@ -164,7 +162,7 @@ if __name__ == "__main__":
         base_path / dataset_path,
         split_path=split_path,
         split_mode="val",
-        z_split_width=3,
+        z_split_width=1,
         useful_chunk_path=useful_chunk_path,
         transform=transform,
     )
@@ -180,6 +178,8 @@ if __name__ == "__main__":
 
     average_load_time = total_time / num_pairs
     print(f"Average load time per pair: {average_load_time} seconds")
+    print("mask.shape = {}".format(data.shape, mask.shape))
+          
 
     # For finding useful chunks
     # dataset._find_useful_chunks(useful_chunk_path) # this will take a while, call once to save keys
