@@ -8,6 +8,7 @@ from tqdm import tqdm
 from typing import Literal
 
 from monai.transforms import RandRotate, RandCropByPosNegLabel, NormalizeIntensity
+import time
 
 
 class GutDataset(Dataset):
@@ -163,10 +164,23 @@ if __name__ == "__main__":
         base_path / dataset_path,
         split_path=split_path,
         split_mode="val",
+        z_split_width=3,
         useful_chunk_path=useful_chunk_path,
         transform=transform,
     )
     dataset.info()
+
+    total_time = 0
+    num_pairs = 100
+    for i in range(num_pairs):
+        start_time = time.time()
+        data, mask = dataset[i]
+        end_time = time.time()
+        pair_load_time = end_time - start_time
+        total_time += pair_load_time
+
+    average_load_time = total_time / num_pairs
+    print(f"Average load time per pair: {average_load_time} seconds")
 
     # For finding useful chunks
     # dataset._find_useful_chunks(useful_chunk_path) # this will take a while, call once to save keys
