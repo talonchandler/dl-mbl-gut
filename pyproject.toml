@@ -24,5 +24,11 @@ dependencies = [
     "matplotlib",
     "pillow",
     "iohub",
+<<<<<<< HEAD
     "monai",
 ]
+=======
+    "aicsimageio",
+    "monai"
+]
+>>>>>>> 4940777 (edits to dataloader_avl.py)
