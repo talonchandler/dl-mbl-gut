@@ -51,10 +51,7 @@ model = model.UNet(
 
 validation_metric = evaluation.f_beta(beta=1)
 
-
-print("HERE1", len(train_dataset), len(val_dataset))
-print("HERE", len(train_dataloader), len(val_dataloader))
-n_epochs = 10
+n_epochs = 100
 for epoch in range(n_epochs):
     train.train(
         model,
