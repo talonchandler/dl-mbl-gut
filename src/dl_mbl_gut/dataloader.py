@@ -5,6 +5,7 @@ from pathlib import Path
 from iohub import open_ome_zarr
 from torch.utils.data import Dataset
 from tqdm import tqdm
+from typing import Literal
 
 from monai.transforms import RandRotate, RandCropByPosNegLabel, NormalizeIntensity
 
@@ -13,9 +14,11 @@ class GutDataset(Dataset):
 
     def __init__(
         self,
-        root_dir,
-        data_channel_name="BF_fluor_path",
-        mask_channel_name="label",
+        root_dir: Path,
+        split_path: Path,
+        split_mode: Literal["train", "val", "test", None] = "train",
+        data_channel_name: str = "BF_fluor_path",
+        mask_channel_name: str = "label",
         z_split_width=1,
         x_split_width=1024,
         patch_size=256,
@@ -25,16 +28,24 @@ class GutDataset(Dataset):
         ndim=3,
     ):
         self.root_dir = root_dir
+        self.split_path = split_path
+        self.split_mode = split_mode
         self.data_channel_name = data_channel_name
         self.mask_channel_name = mask_channel_name
-        self.dataset = open_ome_zarr(root_dir)
-        self.positions = [x for x in self.dataset.positions()]
         self.x_split_width = x_split_width
         self.z_split_width = z_split_width
         self.patch_size = patch_size
         self.transform = transform
         self.img_transform = img_transform
         self.ndim = ndim
+
+        self.dataset = open_ome_zarr(self.root_dir)
+        self.fish_ids = []
+        with open(self.split_path, "r") as f:
+            for line in f.readlines():
+                row = line.strip().split(",")
+                if row[1] == self.split_mode:
+                    self.fish_ids.append(row[0])
 
         self.data_channel_index = self.dataset.get_channel_index(data_channel_name)
         self.mask_channel_index = self.dataset.get_channel_index(mask_channel_name)
@@ -45,13 +56,17 @@ class GutDataset(Dataset):
         # If useful_chunk_table is not None, load the indices from the file
         if useful_chunk_path is not None:
             with open(useful_chunk_path, "r") as f:
-                self.item_keys = [
-                    list(line.strip().split(",")) for line in f.readlines()
-                ]
+                for line in f.readlines():
+                    row = line.strip().split(",")
+                    if row[0] in self.fish_ids:  # only use if in split
+                        self.item_keys.append(row)
+
+            # Clean types
             for row in self.item_keys:
                 row[1:] = [int(val) for val in row[1:]]
+
         else:
-            for fish_id, position in self.positions:  # fish id
+            for fish_id, position in self.dataset.positions():  # fish id
                 z_width = position[0].shape[-3]
                 x_width = position[0].shape[-1]
                 for z_index in range(z_width):
@@ -138,10 +153,16 @@ if __name__ == "__main__":
     useful_chunk_path = base_path / dataset_path.with_suffix(".csv")
     # useful_chunk_path = base_path / "all-downsample-2x-masks-only.csv"
 
+    split_path = base_path / dataset_path.with_stem(
+        dataset_path.stem + "-split"
+    ).with_suffix(".csv")
+
     transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
 
     dataset = GutDataset(
         base_path / dataset_path,
+        split_path=split_path,
+        split_mode="val",
         useful_chunk_path=useful_chunk_path,
         transform=transform,
     )
