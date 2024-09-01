@@ -75,16 +75,16 @@ if __name__ == '__main__':
 
     print('you did it', image.dtype, mask.dtype, image.shape, mask.shape, len(testdataset), len(Subset(testdataset, range(100))))
 
-    # # For viewing random patches
-    # import napari
-    # import random
+    # For viewing random patches
+    import napari
+    import random
 
-    # v = napari.Viewer()
+    v = napari.Viewer()
 
-    # for i in range(100):
-    #     random_index = random.randint(0, len(testdataset))
-    #     data, mask = testdataset[random_index]
-    #     v.add_image(data, name="data")
-    #     v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
-    #     input("Press Enter to continue...")
-    #     v.layers.clear()
+    for i in range(100):
+        random_index = random.randint(0, len(testdataset))
+        data, mask = testdataset[random_index]
+        v.add_image(data, name="data")
+        v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
+        input("Press Enter to continue...")
+        v.layers.clear()

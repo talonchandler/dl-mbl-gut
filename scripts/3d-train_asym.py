@@ -10,12 +10,12 @@ from torch.utils.tensorboard import SummaryWriter
 from dl_mbl_gut import dataloader_avl, model_asym, train, evaluation
 
 # tensorboard stuff
-runname = "3d_asym_avl"
+runname = "3d_asym_avl5e-5 learn extra conv"
 runs_path = "/mnt/efs/dlmbl/G-bs/runs/"+runname
 logger = SummaryWriter(runs_path)
 
 # batch size and subset of datasets, if desired, otherwise sub = None
-batch_size = 10
+batch_size = 9
 sub = None
 
 #data directory for dataloading
@@ -32,8 +32,9 @@ train_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = trans
 val_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'val')
 
 #sub set the datasets for short runs
-if sub == True:
+if sub:
     train_dataset = Subset(train_dataset, range(sub))
+    print('train_dataset reduced to ', sub)
     val_dataset = Subset(val_dataset, range(sub))
 
 #put datasets into dataloaders
@@ -49,8 +50,8 @@ model = model_asym.UNet(
     num_fmaps = num_fmaps,
     fmap_inc_factor = 2,
     downsample_factors = [(1,2,2),(2,2,2),(2,2,2)],
-    kernel_size_down = [[(1,3,3),(1,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
-    kernel_size_up = [[(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
+    kernel_size_down = [[(1,3,3),(1,3,3),(1,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
+    kernel_size_up = [[(3,3,3),(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
     activation = 'ReLU',
     fov = (1, 1, 1),
     voxel_size = (1, 1, 1),
@@ -66,7 +67,8 @@ allmodel = nn.Sequential(
 )
 
 # setup rest of stuff for training loop
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
+scan = tuple(np.arange(0.5,1,0.1))
+optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005)
 validation_metric = evaluation.f_beta(beta=1)
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 n_epochs = 100
@@ -95,5 +97,6 @@ for epoch in range(n_epochs):
         step=epoch * len(train_dataloader),
         tb_logger=logger,
         device=device,
+        scan = scan,
     )
 
