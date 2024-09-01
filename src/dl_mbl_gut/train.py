@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from tqdm import tqdm
 import torch.nn as nn
 
 
@@ -38,8 +39,10 @@ def train(
     device=None,
     early_stop=False,
     loss_function=nn.BCELoss(),
+    optimizer=None,
 ):
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
+    if optimizer is None:
+        optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 
     if device is None:
         # You can pass in a device or we will default to using
@@ -57,7 +60,10 @@ def train(
     model = model.to(device)
 
     # iterate over the batches of this epoch
-    for batch_id, (x, y) in enumerate(loader):
+    loss = 1
+    pbar = tqdm(enumerate(loader))
+    for batch_id, (x, y) in pbar:
+
         # move input and target to the active device (either cpu or gpu)
         x, y = x.to(device), y.to(device)
 
@@ -65,19 +71,22 @@ def train(
         optimizer.zero_grad()
 
         # apply model and calculate loss
+        # with torch.autocast(device_type="cuda"):
         prediction = model(x)
-        print(y.shape, prediction.shape)
         if prediction.shape != y.shape:
             y = center_crop(y, prediction)
         if y.dtype != prediction.dtype:
             y = y.type(prediction.dtype)
         loss = loss_function(prediction, y)
 
-        print(f"Prediction min: {prediction.min():.3f}, max: {prediction.max():.3f}")
-
         # backpropagate the loss and adjust the parameters
         loss.backward()
         optimizer.step()
+
+        # Progress bar logging
+        pbar.set_description(
+            f"Loss: {loss:.2f}, Pred min: {prediction.min():.2f}, Pred max: {prediction.max():.2f}"
+        )
 
         # log to console
         if batch_id % log_interval == 0:
