@@ -52,11 +52,7 @@ def train(
     device=None,
     early_stop=False,
     loss_function=nn.BCELoss(),
-    optimizer=None,
 ):
-    if optimizer is None:
-        optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
-
     if device is None:
         # You can pass in a device or we will default to using
         # the gpu. Feel free to try training on the cpu to see

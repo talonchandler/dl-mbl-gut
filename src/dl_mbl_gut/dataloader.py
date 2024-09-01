@@ -107,9 +107,9 @@ class GutDataset(Dataset):
         z_max = z_index + self.z_split_width + 1
         if z_min <= 0:
             z_min = 0
-            z_max = 2*self.z_split_width + 1
+            z_max = 2 * self.z_split_width + 1
         if z_max >= z_shape:
-            z_min = z_shape - 2*self.z_split_width - 1 - 2 # kludge
+            z_min = z_shape - 2 * self.z_split_width - 1 - 2  # kludge
             z_max = z_shape - 2
 
         data = self.dataset[position_key][0][
@@ -117,20 +117,21 @@ class GutDataset(Dataset):
             self.data_channel_index,
             z_min:z_max,
             :,
-            x_start:x_end,
+            :,
         ][None]
         mask = self.dataset[position_key][0][
             0,
             self.mask_channel_index,
             z_min:z_max,
             :,
-            x_start:x_end,
+            :,
         ][None]
         seed = np.random.randint(0, 100)
 
-        outer_patch_size = np.ceil(self.patch_size * np.sqrt(2))
+        outer_patch_size = np.ceil(self.patch_size * np.sqrt(2)).astype(int)
+        y_crop_width = np.min([outer_patch_size, mask.shape[-2]])
         crop = RandCropByPosNegLabel(
-            (z_width, outer_patch_size, outer_patch_size),
+            (z_width, y_crop_width, outer_patch_size),
             None,
             pos=0.8,
             neg=0.2,
@@ -156,11 +157,13 @@ class GutDataset(Dataset):
         mask = center_crop(mask)
 
         # Normalize the data
-        mean = self.dataset[position_key].zattrs["mean"]
-        std = self.dataset[position_key].zattrs["std"]
+        mean = self.dataset[position_key].zattrs[self.data_channel_name+"_mean"]
+        std = self.dataset[position_key].zattrs[self.data_channel_name+"_std"]
 
         data = NormalizeIntensity(subtrahend=mean, divisor=std)(data[0])
         mask = mask[0]
+
+        mask = mask > 0
 
         return data, mask
 
@@ -173,21 +176,22 @@ class GutDataset(Dataset):
 
 if __name__ == "__main__":
     base_path = Path("/mnt/efs/dlmbl/G-bs/data/")
-    # dataset_path = Path("all-downsample-2x.zarr")
-    dataset_path = Path("all-downsample-2x-rechunked.zarr")
-    useful_chunk_path = base_path / Path("all-downsample-2x.csv")
-    # useful_chunk_path = base_path / "all-downsample-2x-masks-only.csv"
+    dataset_path = Path("all-downsample-8x.zarr")
+    # useful_chunk_path = base_path / Path("all-downsample-2x-masks-only.csv")
+    useful_chunk_path = base_path / "all-downsample-2x-masks-only.csv"
 
     split_path = base_path / Path("all-downsample-2x-split.csv")
 
-    transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
+    transform = RandRotate(range_x=np.pi / 16, prob=0.5, padding_mode="zeros")
 
     dataset = GutDataset(
         base_path / dataset_path,
         split_path=split_path,
-        split_mode="val",
-        z_split_width=2,
+        split_mode="train",
+        data_channel_name="Phase3D",
+        z_split_width=0,
         useful_chunk_path=useful_chunk_path,
+        patch_size=252,
         transform=transform,
     )
     dataset.info()
@@ -197,32 +201,32 @@ if __name__ == "__main__":
     batch_size = 13
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=4)
 
-    total_time = 0
-    num_pairs = 2
-    start_time = time.time()
-    for i, (x, y) in enumerate(dataloader):
-        if i == num_pairs:
-            break
+    # total_time = 0
+    # num_pairs = 2
+    # start_time = time.time()
+    # for i, (x, y) in enumerate(dataloader):
+    #     if i == num_pairs:
+    #         break
 
-    end_time = time.time()
-    total_time += end_time - start_time
+    # end_time = time.time()
+    # total_time += end_time - start_time
 
-    average_load_time = total_time / (batch_size * num_pairs)
-    print(f"Average load time per pair: {average_load_time:.2f} seconds")
+    # average_load_time = total_time / (batch_size * num_pairs)
+    # print(f"Average load time per pair: {average_load_time:.2f} seconds")
 
     # For finding useful chunks
     # dataset._find_useful_chunks(useful_chunk_path) # this will take a while, call once to save keys
 
-    # # For viewing random patches
-    # import napari
-    # import random
+    # For viewing random patches
+    import napari
+    import random
 
-    # v = napari.Viewer()
+    v = napari.Viewer()
 
-    # for i in range(100):
-    #     random_index = random.randint(0, len(dataset))
-    #     data, mask = dataset[random_index]
-    #     v.add_image(data, name="data")
-    #     v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
-    #     input("Press Enter to continue...")
-    #     v.layers.clear()
+    while True:
+        data, mask = next(iter(dataloader))
+        print(data.shape, mask.shape)
+        v.add_image(data, name="data")
+        v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
+        input("Press Enter to continue...")
+        v.layers.clear()
