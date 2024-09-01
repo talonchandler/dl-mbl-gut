@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from dl_mbl_gut import dataloader_avl, model, train, evaluation
 
 # tensorboard stuff
-runname = "3davl_same_dice"
+runname = "3davl_same_dice_save"
 runs_path = "/mnt/efs/dlmbl/G-bs/runs/"+runname
 logger = SummaryWriter(runs_path)
 
@@ -33,7 +33,6 @@ val_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transfo
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 
 model = model.UNet(
     depth=3,
@@ -47,10 +46,14 @@ model = model.UNet(
     ndim=3,
 )
 
+
+optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 validation_metric = evaluation.f_beta(beta=1)
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-n_epochs = 10
+n_epochs = 100
 for epoch in range(n_epochs):
+
+
     train.train(
         model,
         train_dataloader,
@@ -61,7 +64,7 @@ for epoch in range(n_epochs):
         loss_function= train.DiceCoefficient(), #torch.nn.BCELoss(),
     )
 
-    torch.save(model.state_dict(), f'"/mnt/efs/dlmbl/G-bs/models/{runname}_model_epoch_{epoch+1}.pth')
+    torch.save(model.state_dict(), f'/mnt/efs/dlmbl/G-bs/models/{runname}_model_epoch_{epoch+1}.pth')
     print(f'Model weights saved for epoch {epoch+1}')
 
     evaluation.validate(
