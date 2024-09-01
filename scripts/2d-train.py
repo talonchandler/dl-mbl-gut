@@ -9,15 +9,22 @@ from torch.nn import Sigmoid
 from monai.transforms import RandRotate
 from torch.utils.tensorboard import SummaryWriter
 from dl_mbl_gut import dataloader, model, train, evaluation
+import datetime
+
+# Parameters
+n_epochs = 100
+batch_size = 10
+learning_rate = 1e-5
 
 # Input paths
 base_path = Path("/mnt/efs/dlmbl/G-bs/data/")
 dataset_path = base_path / Path("all-downsample-2x.zarr")
 split_path = base_path / Path("all-downsample-2x-split.csv")
-useful_chunk_path = base_path / Path("all-downsample-2x-masks-only.csv")  # everything
+useful_chunk_path = base_path / Path("all-downsample-2x.csv")  # everything
 
 runs_path = Path("/mnt/efs/dlmbl/G-bs/runs/")
-logger = SummaryWriter(runs_path / "2d-test-val-split-fast-load")
+run_name = datetime.datetime.now().strftime("%m-%d") + "-2d-test-dice-all"
+logger = SummaryWriter(runs_path / run_name)
 
 transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
 
@@ -35,8 +42,8 @@ train_dataset, val_dataset = [
     for split_mode in ["train", "test"]
 ]
 
-train_dataloader = DataLoader(train_dataset, batch_size=10, shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=10, shuffle=False)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 model = model.UNet(
     depth=4,
@@ -50,19 +57,34 @@ model = model.UNet(
     ndim=2,
 )
 
-validation_metric = evaluation.f_beta(beta=1)
-loss = train.AddLossFuncs(train.DiceCoefficient, torch.nn.BCELoss)
+loss_function = (
+    evaluation.DiceCoefficient()
+)  # torch.nn.BCEWithLogitsLoss()  # torch.nn.BCELoss()
 
-n_epochs = 100
+optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+validation_metric = evaluation.f_beta(beta=1)
+
 for epoch in range(n_epochs):
+    torch.save(
+        model.state_dict(),
+        f"/mnt/efs/dlmbl/G-bs/models/{run_name}_model_epoch_{epoch+1}.pth",
+    )
+    print(f"Model weights saved for epoch {epoch}")
     train.train(
         model,
         train_dataloader,
         epoch,
         tb_logger=logger,
         device="cuda",
-        loss_function= loss,
+        loss_function=loss_function,
+        optimizer=optimizer,
     )
+
+    torch.save(
+        model.state_dict(),
+        f"/mnt/efs/dlmbl/G-bs/models/{run_name}_model_epoch_{epoch+1}.pth",
+    )
+    print(f"Model weights saved for epoch {epoch+1}")
 
     evaluation.validate(
         model,

@@ -1,6 +1,8 @@
 import torch
 import numpy as np
+from tqdm import tqdm
 import torch.nn as nn
+
 
 class AddLossFuncs(nn.Module):
     def __init__(self, loss1, loss2):
@@ -9,9 +11,10 @@ class AddLossFuncs(nn.Module):
         self.loss2 = loss2()
 
     def forward(self, prediction, target):
-        val1 = self.loss1(prediction,target)
-        val2 = self.loss2(prediction,target)
+        val1 = self.loss1(prediction, target)
+        val2 = self.loss2(prediction, target)
         return val1 + val2
+
 
 class DiceCoefficient(nn.Module):
     def __init__(self, eps=1e-6):
@@ -49,7 +52,10 @@ def train(
     device=None,
     early_stop=False,
     loss_function=nn.BCELoss(),
+    optimizer=None,
 ):
+    if optimizer is None:
+        optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 
     if device is None:
         # You can pass in a device or we will default to using
@@ -67,7 +73,10 @@ def train(
     model = model.to(device)
 
     # iterate over the batches of this epoch
-    for batch_id, (x, y) in enumerate(loader):
+    loss = 1
+    pbar = tqdm(enumerate(loader))
+    for batch_id, (x, y) in pbar:
+
         # move input and target to the active device (either cpu or gpu)
         x, y = x.to(device), y.to(device)
 
@@ -84,11 +93,14 @@ def train(
                 y = y.type(prediction.dtype)
             loss = loss_function(prediction, y)
 
-            print(f"Prediction min: {prediction.min():.3f}, max: {prediction.max():.3f}")
-
         # backpropagate the loss and adjust the parameters
         loss.backward()
         optimizer.step()
+
+        # Progress bar logging
+        pbar.set_description(
+            f"Loss: {loss:.2f}, Pred min: {prediction.min():.2f}, Pred max: {prediction.max():.2f}"
+        )
 
         # log to console
         if batch_id % log_interval == 0:
@@ -109,7 +121,7 @@ def train(
                 tag="train_loss", scalar_value=loss.item(), global_step=step
             )
             # check if we log images in this iteration
-            if (step % log_image_interval == 0) and (len(x.shape)<=4):
+            if (step % log_image_interval == 0) and (len(x.shape) <= 4):
                 tb_logger.add_images(
                     tag="input", img_tensor=x.to("cpu"), global_step=step
                 )
@@ -121,16 +133,20 @@ def train(
                     img_tensor=prediction.to("cpu").detach(),
                     global_step=step,
                 )
-            elif (step % log_image_interval == 0) and (len(x.shape)>4):
+            elif (step % log_image_interval == 0) and (len(x.shape) > 4):
                 tb_logger.add_images(
-                    tag="input", img_tensor=np.max(x.to("cpu").numpy(),axis = -3), global_step=step
+                    tag="input",
+                    img_tensor=np.max(x.to("cpu").numpy(), axis=-3),
+                    global_step=step,
                 )
                 tb_logger.add_images(
-                    tag="target", img_tensor=np.max(y.to("cpu").numpy(),axis = -3), global_step=step
+                    tag="target",
+                    img_tensor=np.max(y.to("cpu").numpy(), axis=-3),
+                    global_step=step,
                 )
                 tb_logger.add_images(
                     tag="prediction",
-                    img_tensor=np.max(prediction.to("cpu").detach().numpy(), axis = -3),
+                    img_tensor=np.max(prediction.to("cpu").detach().numpy(), axis=-3),
                     global_step=step,
                 )
         if early_stop and batch_id > 5:
