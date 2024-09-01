@@ -103,12 +103,14 @@ class GutDataset(Dataset):
         # Always get a valid z range
         z_shape = self.dataset[position_key][0].shape[-3]
         z_width = 2 * self.z_split_width + 1
-        z_min = np.max([0, z_index - self.z_split_width])
-        z_max = np.min([z_shape, z_index + self.z_split_width + 1])
-        if z_min == 0:
-            z_max = 2 * self.z_split_width + 1
-        if z_max == z_shape:
-            z_max = z_shape - (2 * self.z_split_width + 1)
+        z_min = z_index - self.z_split_width
+        z_max = z_index + self.z_split_width + 1
+        if z_min <= 0:
+            z_min = 0
+            z_max = 2*self.z_split_width + 1
+        if z_max >= z_shape:
+            z_min = z_shape - 2*self.z_split_width - 1 - 2 # kludge
+            z_max = z_shape - 2
 
         data = self.dataset[position_key][0][
             0,
