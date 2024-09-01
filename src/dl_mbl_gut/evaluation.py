@@ -91,10 +91,11 @@ def validate(
         )
         # we always log the last validation images
         print('hello')
+        print('prediction shape is '+prediction.shape)
         tb_logger.add_images(tag="val_input", img_tensor=np.max(x.to("cpu").numpy(),axis=-3), global_step=step)
         tb_logger.add_images(tag="val_target", img_tensor=np.max(y.to("cpu").numpy(),axis=-3), global_step=step)
         tb_logger.add_images(
-            tag="val_prediction", img_tensor=np.max(prediction.to("cpu").numpy(),axis=-3), global_step=step
+            tag="val_prediction", img_tensor=np.max(prediction.to("cpu").detach().numpy(),axis=-3), global_step=step
         )
 
     print(

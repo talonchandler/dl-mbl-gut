@@ -55,8 +55,8 @@ class ConvPass(torch.nn.Module):
 
         #fix weight initializations
         for _name, layer in self.named_modules():
-            if isinstance(layer, tuple(conv.values())):
-                torch.nn.init.kaiming_normal_(layer.weight, nonlinearity=self.actstr)
+            if isinstance(layer, conv):
+                torch.nn.init.kaiming_normal_(layer.weight, nonlinearity=self.actstr.lower())
 
     def forward(self, x):
 
@@ -437,8 +437,6 @@ class UNet(torch.nn.Module):
         if level == 0:
 
             fs_out = [f_left]*self.num_heads
-
-        else:
 
             # down
             g_in = self.l_down[i](f_left)
