@@ -3,7 +3,7 @@ import numpy as np
 
 from pathlib import Path
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torch import nn
 from monai import transforms
 from torch.utils.tensorboard import SummaryWriter
@@ -29,6 +29,9 @@ transform = transforms.Compose([
 
 train_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'train')
 val_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'val')
+
+train_dataset = Subset(train_dataset, range(10))
+val_dataset = Subset(val_dataset, range(10))
 
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)

@@ -2,7 +2,7 @@ import numpy as np
 import os
 from aicsimageio.readers import TiffReader
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 import pandas as pd
 from monai import transforms
 from monai.data import MetaTensor
@@ -73,18 +73,18 @@ if __name__ == '__main__':
     testdataset = NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'test')
     image, mask = testdataset[0]
 
-    print('you did it', image.dtype, mask.dtype, image.shape, mask.shape)
+    print('you did it', image.dtype, mask.dtype, image.shape, mask.shape, len(testdataset), len(Subset(testdataset, range(100))))
 
-    # For viewing random patches
-    import napari
-    import random
+    # # For viewing random patches
+    # import napari
+    # import random
 
-    v = napari.Viewer()
+    # v = napari.Viewer()
 
-    for i in range(100):
-        random_index = random.randint(0, len(testdataset))
-        data, mask = testdataset[random_index]
-        v.add_image(data, name="data")
-        v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
-        input("Press Enter to continue...")
-        v.layers.clear()
+    # for i in range(100):
+    #     random_index = random.randint(0, len(testdataset))
+    #     data, mask = testdataset[random_index]
+    #     v.add_image(data, name="data")
+    #     v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
+    #     input("Press Enter to continue...")
+    #     v.layers.clear()

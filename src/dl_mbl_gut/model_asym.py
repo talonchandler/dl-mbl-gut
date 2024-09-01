@@ -438,6 +438,8 @@ class UNet(torch.nn.Module):
 
             fs_out = [f_left]*self.num_heads
 
+        else:
+
             # down
             g_in = self.l_down[i](f_left)
 
