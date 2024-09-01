@@ -157,8 +157,8 @@ class GutDataset(Dataset):
         mask = center_crop(mask)
 
         # Normalize the data
-        mean = self.dataset[position_key].zattrs[self.data_channel_name+"_mean"]
-        std = self.dataset[position_key].zattrs[self.data_channel_name+"_std"]
+        mean = self.dataset[position_key].zattrs[self.data_channel_name + "_mean"]
+        std = self.dataset[position_key].zattrs[self.data_channel_name + "_std"]
 
         data = NormalizeIntensity(subtrahend=mean, divisor=std)(data[0])
         mask = mask[0]
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     dataset = GutDataset(
         base_path / dataset_path,
         split_path=split_path,
-        split_mode="train",
+        split_mode="val",
         data_channel_name="Phase3D",
         z_split_width=0,
         useful_chunk_path=useful_chunk_path,
@@ -198,8 +198,8 @@ if __name__ == "__main__":
 
     from torch.utils.data import DataLoader
 
-    batch_size = 13
-    dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=4)
+    batch_size = 50
+    dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=4, shuffle=True)
 
     # total_time = 0
     # num_pairs = 2
