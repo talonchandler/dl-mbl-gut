@@ -13,7 +13,7 @@ import datetime
 
 # Parameters
 n_epochs = 100
-batch_size = 50
+batch_size = 40
 learning_rate = 1e-5
 
 # Input paths
@@ -24,7 +24,7 @@ split_path = base_path / Path("all-downsample-2x-split.csv")
 useful_chunk_path = base_path / Path("all-downsample-2x.csv")  # all non-zero data
 
 runs_path = Path("/mnt/efs/dlmbl/G-bs/runs/")
-run_name = datetime.datetime.now().strftime("%m-%d") + "-2d-large-fov-all-phase"
+run_name = datetime.datetime.now().strftime("%m-%d") + "-2d-large-fov-same"
 logger = SummaryWriter(runs_path / run_name)
 
 transform = RandRotate(range_x=np.pi / 16, prob=0.5, padding_mode="zeros")
@@ -38,7 +38,7 @@ train_dataset, val_dataset = [
         split_mode=split_mode,
         useful_chunk_path=useful_chunk_path,
         transform=transform,
-        patch_size=252,
+        patch_size=256,
         ndim=2,
     )
     for split_mode in ["train", "test"]
@@ -54,7 +54,7 @@ model = model.UNet(
     kernel_size=3,
     num_fmaps=64,
     fmap_inc_factor=2,
-    padding="valid",
+    padding="same",
     final_activation=Sigmoid(),
     ndim=2,
 )

@@ -191,7 +191,7 @@ if __name__ == "__main__":
         data_channel_name="Phase3D",
         z_split_width=0,
         useful_chunk_path=useful_chunk_path,
-        patch_size=252,
+        patch_size=164,
         transform=transform,
     )
     dataset.info()
