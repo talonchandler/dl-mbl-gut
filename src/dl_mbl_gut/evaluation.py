@@ -99,15 +99,10 @@ def validate(
         tb_logger.add_scalar(
             tag="val_metric", scalar_value=val_metric, global_step=step
         )
-        # if len(scan)>1:
-        #     add_scalar(f'val_loss_thresh_scan/score',    score[iter],    iter)
-        #     add_scalar(f'check_info/score',    score[iter],    iter)
-        #     for scanind in range(len(scan)):
-        #         scanloss = scan_val_loss[scanind]
-        #         scanval = scan_val_metric[scanind]
-        #         tb_logger.add_scalar(f'val_loss_thresh_scan/{scan[scanind]}',    score[iter],    iter)
-                # tb_logger.add_scalar(tag="val_loss_thresh_scan", scalar_value=scanloss, global_step=step)
-                # tb_logger.add_scalar(tag="val_metric_thresh_scan", scalar_value=scanval, global_step=step)
+        if len(scan)>1:
+            for scanind in range(len(scan)):
+                tb_logger.add_scalar(f'val_loss_thresh_scan/{scan[scanind]}', scan_val_loss[scanind],global_step=step)
+                tb_logger.add_scalar(f'val_metric_thresh_scan/{scan[scanind]}', scan_val_metric[scanind], global_step=step)
         # we always log the last validation images
         tb_logger.add_images(tag="val_input", img_tensor=np.max(x.to("cpu").numpy(),axis=-3), global_step=step)
         tb_logger.add_images(tag="val_target", img_tensor=np.max(y.to("cpu").numpy(),axis=-3), global_step=step)
