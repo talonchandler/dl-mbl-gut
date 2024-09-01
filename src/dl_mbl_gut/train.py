@@ -41,6 +41,7 @@ def center_crop(x, y):
 def train(
     model,
     loader,
+    optimizer,
     epoch,
     log_interval=100,
     log_image_interval=20,
@@ -49,7 +50,6 @@ def train(
     early_stop=False,
     loss_function=nn.BCELoss(),
 ):
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 
     if device is None:
         # You can pass in a device or we will default to using

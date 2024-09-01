@@ -33,6 +33,8 @@ val_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transfo
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
+optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
+
 model = model.UNet(
     depth=3,
     in_channels=1,
@@ -52,12 +54,16 @@ for epoch in range(n_epochs):
     train.train(
         model,
         train_dataloader,
+        optimizer,
         epoch,
         tb_logger=logger,
         device=device,
         loss_function= train.DiceCoefficient(), #torch.nn.BCELoss(),
     )
-    
+
+    torch.save(model.state_dict(), f'"/mnt/efs/dlmbl/G-bs/models/{runname}_model_epoch_{epoch+1}.pth')
+    print(f'Model weights saved for epoch {epoch+1}')
+
     evaluation.validate(
         model,
         val_dataloader,
@@ -66,3 +72,4 @@ for epoch in range(n_epochs):
         tb_logger=logger,
         device=device,
     )
+
