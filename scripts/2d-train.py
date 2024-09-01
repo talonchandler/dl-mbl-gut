@@ -13,30 +13,32 @@ import datetime
 
 # Parameters
 n_epochs = 100
-batch_size = 10
+batch_size = 40
 learning_rate = 1e-5
 
 # Input paths
 base_path = Path("/mnt/efs/dlmbl/G-bs/data/")
-dataset_path = base_path / Path("all-downsample-2x.zarr")
+dataset_path = base_path / Path("all-downsample-8x.zarr")
 split_path = base_path / Path("all-downsample-2x-split.csv")
-useful_chunk_path = base_path / Path("all-downsample-2x.csv")  # everything
+# useful_chunk_path = base_path / Path("all-downsample-2x-masks-only.csv")  # just masks
+useful_chunk_path = base_path / Path("all-downsample-2x.csv")  # all non-zero data
 
 runs_path = Path("/mnt/efs/dlmbl/G-bs/runs/")
-run_name = datetime.datetime.now().strftime("%m-%d") + "-2d-test-dice-all"
+run_name = datetime.datetime.now().strftime("%m-%d") + "-2d-large-fov-same"
 logger = SummaryWriter(runs_path / run_name)
 
-transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
+transform = RandRotate(range_x=np.pi / 16, prob=0.5, padding_mode="zeros")
 
 train_dataset, val_dataset = [
     dataloader.GutDataset(
         dataset_path,
         split_path,
+        data_channel_name="Phase3D",
         z_split_width=0,
         split_mode=split_mode,
         useful_chunk_path=useful_chunk_path,
         transform=transform,
-        patch_size=428,
+        patch_size=256,
         ndim=2,
     )
     for split_mode in ["train", "test"]
@@ -52,7 +54,7 @@ model = model.UNet(
     kernel_size=3,
     num_fmaps=64,
     fmap_inc_factor=2,
-    padding="valid",
+    padding="same",
     final_activation=Sigmoid(),
     ndim=2,
 )
@@ -73,11 +75,11 @@ for epoch in range(n_epochs):
     train.train(
         model,
         train_dataloader,
+        optimizer,
         epoch,
         tb_logger=logger,
         device="cuda",
         loss_function=loss_function,
-        optimizer=optimizer,
     )
 
     torch.save(

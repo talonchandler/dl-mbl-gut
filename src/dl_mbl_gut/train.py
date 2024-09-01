@@ -53,8 +53,6 @@ def train(
     early_stop=False,
     loss_function=nn.BCELoss(),
 ):
-
-
     if device is None:
         # You can pass in a device or we will default to using
         # the gpu. Feel free to try training on the cpu to see
