@@ -9,6 +9,7 @@ from torch.nn import Sigmoid
 from monai.transforms import RandRotate
 from torch.utils.tensorboard import SummaryWriter
 from dl_mbl_gut import dataloader, model, train, evaluation
+import datetime
 
 # Parameters
 n_epochs = 100
@@ -22,7 +23,7 @@ split_path = base_path / Path("all-downsample-2x-split.csv")
 useful_chunk_path = base_path / Path("all-downsample-2x.csv")  # everything
 
 runs_path = Path("/mnt/efs/dlmbl/G-bs/runs/")
-run_name = "2d-test-dice-all"
+run_name = datetime.datetime.now().strftime("%m-%d") + "-2d-test-dice-all"
 logger = SummaryWriter(runs_path / run_name)
 
 transform = RandRotate(range_x=np.pi / 8, prob=1.0, padding_mode="zeros")
