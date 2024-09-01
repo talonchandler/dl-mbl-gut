@@ -60,7 +60,7 @@ model = model.UNet(
 loss_function = (
     evaluation.DiceCoefficient()
 )  # torch.nn.BCEWithLogitsLoss()  # torch.nn.BCELoss()
-#   ##
+
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 validation_metric = evaluation.f_beta(beta=1)
 

@@ -25,4 +25,6 @@ dependencies = [
     "pillow",
     "iohub",
     "monai",
+    "aicsimageio",
+    "pandas"
 ]

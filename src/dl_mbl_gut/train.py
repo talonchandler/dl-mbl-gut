@@ -4,6 +4,18 @@ from tqdm import tqdm
 import torch.nn as nn
 
 
+class AddLossFuncs(nn.Module):
+    def __init__(self, loss1, loss2):
+        super().__init__()
+        self.loss1 = loss1()
+        self.loss2 = loss2()
+
+    def forward(self, prediction, target):
+        val1 = self.loss1(prediction, target)
+        val2 = self.loss2(prediction, target)
+        return val1 + val2
+
+
 class DiceCoefficient(nn.Module):
     def __init__(self, eps=1e-6):
         super().__init__()
@@ -32,6 +44,7 @@ def center_crop(x, y):
 def train(
     model,
     loader,
+    optimizer,
     epoch,
     log_interval=100,
     log_image_interval=20,
@@ -71,13 +84,14 @@ def train(
         optimizer.zero_grad()
 
         # apply model and calculate loss
-        # with torch.autocast(device_type="cuda"):
-        prediction = model(x)
-        if prediction.shape != y.shape:
-            y = center_crop(y, prediction)
-        if y.dtype != prediction.dtype:
-            y = y.type(prediction.dtype)
-        loss = loss_function(prediction, y)
+        with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+            prediction = model(x)
+            print(y.shape, prediction.shape)
+            if prediction.shape != y.shape:
+                y = center_crop(y, prediction)
+            if y.dtype != prediction.dtype:
+                y = y.type(prediction.dtype)
+            loss = loss_function(prediction, y)
 
         # backpropagate the loss and adjust the parameters
         loss.backward()
@@ -107,7 +121,7 @@ def train(
                 tag="train_loss", scalar_value=loss.item(), global_step=step
             )
             # check if we log images in this iteration
-            if step % log_image_interval == 0:
+            if (step % log_image_interval == 0) and (len(x.shape) <= 4):
                 tb_logger.add_images(
                     tag="input", img_tensor=x.to("cpu"), global_step=step
                 )
@@ -119,7 +133,22 @@ def train(
                     img_tensor=prediction.to("cpu").detach(),
                     global_step=step,
                 )
-
+            elif (step % log_image_interval == 0) and (len(x.shape) > 4):
+                tb_logger.add_images(
+                    tag="input",
+                    img_tensor=np.max(x.to("cpu").numpy(), axis=-3),
+                    global_step=step,
+                )
+                tb_logger.add_images(
+                    tag="target",
+                    img_tensor=np.max(y.to("cpu").numpy(), axis=-3),
+                    global_step=step,
+                )
+                tb_logger.add_images(
+                    tag="prediction",
+                    img_tensor=np.max(prediction.to("cpu").detach().numpy(), axis=-3),
+                    global_step=step,
+                )
         if early_stop and batch_id > 5:
             print("Stopping test early!")
             break
