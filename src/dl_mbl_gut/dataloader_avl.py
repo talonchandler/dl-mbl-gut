@@ -2,7 +2,7 @@ import numpy as np
 import os
 from aicsimageio.readers import TiffReader
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 import pandas as pd
 from monai import transforms
 from monai.data import MetaTensor
@@ -22,7 +22,7 @@ class NucleiDataset(Dataset):
         #  transformations to apply just to inputs
         self.inp_transforms = transforms.Compose(
             [
-                transforms.NormalizeIntensity(0.5, 0.5),
+                transforms.NormalizeIntensity(0, 1),
                 transforms.ToTensor(),
             ]
         )
@@ -39,7 +39,7 @@ class NucleiDataset(Dataset):
         img_path = os.path.join(
         self.root_dir, 'raw/', self.samples[idx] + '_raw.tiff')
         image = TiffReader(img_path).data[1,:,:,:]
-        image = image/np.max(image)
+        image = image/np.percentile(image,99.5)
         image = self.inp_transforms(image[np.newaxis,...])
         mask_path = os.path.join(
             self.root_dir, 'seg/', self.samples[idx] + '_segmented.tiff')
@@ -64,8 +64,8 @@ if __name__ == '__main__':
     datadir = '/mnt/efs/dlmbl/G-bs/AvL/'
 
     transform = transforms.Compose([
-            transforms.RandRotate90(prob = 0.33, spatial_axes = (1,2)),
-            transforms.RandSpatialCrop((150,150,150), random_size = False),
+            transforms.RandSpatialCrop((56,72,72), random_size = False), #min size for AvL images is 59
+            transforms.RandRotate90(prob = 0.75, spatial_axes = (1,2)),
             transforms.RandRotate(prob = 0.1),
             transforms.RandAxisFlip(prob = 0.75),
     ])
@@ -73,18 +73,18 @@ if __name__ == '__main__':
     testdataset = NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'test')
     image, mask = testdataset[0]
 
-    print('you did it', image.dtype, mask.dtype, image.shape, mask.shape)
+    print('you did it', image.dtype, mask.dtype, image.shape, mask.shape, len(testdataset), len(Subset(testdataset, range(100))))
 
-    # # For viewing random patches
-    # import napari
-    # import random
+    # For viewing random patches
+    import napari
+    import random
 
-    # v = napari.Viewer()
+    v = napari.Viewer()
 
-    # for i in range(100):
-    #     random_index = random.randint(0, len(testdataset))
-    #     data, mask = testdataset[random_index]
-    #     v.add_image(data, name="data")
-    #     v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
-    #     input("Press Enter to continue...")
-    #     v.layers.clear()
+    for i in range(100):
+        random_index = random.randint(0, len(testdataset))
+        data, mask = testdataset[random_index]
+        v.add_image(data, name="data")
+        v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
+        input("Press Enter to continue...")
+        v.layers.clear()
