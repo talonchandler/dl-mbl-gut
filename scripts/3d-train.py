@@ -10,9 +10,12 @@ from torch.utils.tensorboard import SummaryWriter
 from dl_mbl_gut import dataloader_avl, model, train, evaluation
 
 # tensorboard stuff
-runname = "3davl-test-val-split"
+runname = "3davl_same_dice"
 runs_path = "/mnt/efs/dlmbl/G-bs/runs/"+runname
 logger = SummaryWriter(runs_path)
+
+#
+batch_size = 20
 
 #data directory for dataloading
 datadir = '/mnt/efs/dlmbl/G-bs/AvL/'
@@ -27,8 +30,8 @@ transform = transforms.Compose([
 train_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'train')
 val_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'val')
 
-train_dataloader = DataLoader(train_dataset, batch_size=10, shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=10, shuffle=False)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 model = model.UNet(
     depth=3,
@@ -37,7 +40,7 @@ model = model.UNet(
     kernel_size=3,
     num_fmaps=64,
     fmap_inc_factor=2,
-    padding="valid",
+    padding="same",
     final_activation=Sigmoid(),
     ndim=3,
 )
@@ -52,7 +55,7 @@ for epoch in range(n_epochs):
         epoch,
         tb_logger=logger,
         device=device,
-        loss_function=torch.nn.BCELoss(),
+        loss_function= train.DiceCoefficient(), #torch.nn.BCELoss(),
     )
     
     evaluation.validate(

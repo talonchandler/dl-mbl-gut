@@ -65,15 +65,16 @@ def train(
         optimizer.zero_grad()
 
         # apply model and calculate loss
-        prediction = model(x)
-        print(y.shape, prediction.shape)
-        if prediction.shape != y.shape:
-            y = center_crop(y, prediction)
-        if y.dtype != prediction.dtype:
-            y = y.type(prediction.dtype)
-        loss = loss_function(prediction, y)
+        with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+            prediction = model(x)
+            print(y.shape, prediction.shape)
+            if prediction.shape != y.shape:
+                y = center_crop(y, prediction)
+            if y.dtype != prediction.dtype:
+                y = y.type(prediction.dtype)
+            loss = loss_function(prediction, y)
 
-        print(f"Prediction min: {prediction.min():.3f}, max: {prediction.max():.3f}")
+            print(f"Prediction min: {prediction.min():.3f}, max: {prediction.max():.3f}")
 
         # backpropagate the loss and adjust the parameters
         loss.backward()

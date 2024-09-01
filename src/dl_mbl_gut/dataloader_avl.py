@@ -56,7 +56,6 @@ class NucleiDataset(Dataset):
             mask = self.transform(mask)
         if self.img_transform is not None:
             image = self.img_transform(image)
-        print('loaded one image')
         return image, mask
 
 

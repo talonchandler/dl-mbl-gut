@@ -65,7 +65,7 @@ def validate(
     val_loss /= len(loader)
     val_metric /= len(loader)
     print('almost')
-    if (tb_logger is not None) and (len(x.numpy().shape)<=4):
+    if (tb_logger is not None) and (len(x.shape)<=4):
         print('bad')
         assert (
             step is not None
@@ -80,7 +80,7 @@ def validate(
         tb_logger.add_images(
             tag="val_prediction", img_tensor=prediction.to("cpu"), global_step=step
         )
-    elif (tb_logger is not None) and (len(x.numpy().shape)>4):
+    elif (tb_logger is not None) and (len(x.shape)>4):
         assert (
             step is not None
         ), "Need to know the current step to log validation results"
