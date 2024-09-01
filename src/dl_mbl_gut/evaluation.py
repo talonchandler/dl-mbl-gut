@@ -65,9 +65,8 @@ def validate(
     # normalize loss and metric
     val_loss /= len(loader)
     val_metric /= len(loader)
-    print('almost')
+    
     if (tb_logger is not None) and (len(x.shape)<=4):
-        print('bad')
         assert (
             step is not None
         ), "Need to know the current step to log validation results"
@@ -90,8 +89,6 @@ def validate(
             tag="val_metric", scalar_value=val_metric, global_step=step
         )
         # we always log the last validation images
-        print('hello')
-        print('prediction shape is '+prediction.shape)
         tb_logger.add_images(tag="val_input", img_tensor=np.max(x.to("cpu").numpy(),axis=-3), global_step=step)
         tb_logger.add_images(tag="val_target", img_tensor=np.max(y.to("cpu").numpy(),axis=-3), global_step=step)
         tb_logger.add_images(

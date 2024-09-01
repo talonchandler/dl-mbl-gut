@@ -14,8 +14,9 @@ runname = "3d_asym_avl"
 runs_path = "/mnt/efs/dlmbl/G-bs/runs/"+runname
 logger = SummaryWriter(runs_path)
 
-#
+# batch size and subset of datasets, if desired, otherwise sub = None
 batch_size = 10
+sub = None
 
 #data directory for dataloading
 datadir = '/mnt/efs/dlmbl/G-bs/AvL/'
@@ -26,18 +27,23 @@ transform = transforms.Compose([
         transforms.RandRotate(prob = 0.1),
         transforms.RandAxisFlip(prob = 0.75),
 ])
-
+#make datasets for training and validation
 train_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'train')
 val_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'val')
 
-train_dataset = Subset(train_dataset, range(10))
-val_dataset = Subset(val_dataset, range(10))
+#sub set the datasets for short runs
+if sub == True:
+    train_dataset = Subset(train_dataset, range(sub))
+    val_dataset = Subset(val_dataset, range(sub))
 
+#put datasets into dataloaders
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
+#number of feature maps
 num_fmaps = 64
 
+#assemble model
 model = model_asym.UNet(
     in_channels = 1,
     num_fmaps = num_fmaps,
@@ -48,23 +54,23 @@ model = model_asym.UNet(
     activation = 'ReLU',
     fov = (1, 1, 1),
     voxel_size = (1, 1, 1),
-    num_fmaps_out = num_fmaps,
     num_heads = 1,
     constant_upsample = True,
     padding = 'same')
 
-
+# add a final activation
 allmodel = nn.Sequential(
     model,
     nn.Conv3d(num_fmaps, 1, 1),
     nn.Sigmoid()
 )
 
-
+# setup rest of stuff for training loop
 optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 validation_metric = evaluation.f_beta(beta=1)
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 n_epochs = 100
+# training loop
 for epoch in range(n_epochs):
 
 
@@ -83,7 +89,7 @@ for epoch in range(n_epochs):
     print(f'Model weights saved for epoch {epoch+1}')
 
     evaluation.validate(
-        model,
+        allmodel,
         val_dataloader,
         metric=validation_metric,
         step=epoch * len(train_dataloader),
