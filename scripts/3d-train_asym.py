@@ -7,10 +7,10 @@ from torch.utils.data import DataLoader, Subset
 from torch import nn
 from monai import transforms
 from torch.utils.tensorboard import SummaryWriter
-from dl_mbl_gut import dataloader_avl, model_asym, train, evaluation
+from dl_mbl_gut import dataloader_avl, model_asym, train, evaluation, metrics
 
 # tensorboard stuff
-runname = "3d_asym_avl5e-5 learn extra conv"
+runname = "3d_asym_avl_new_augs"
 runs_path = "/mnt/efs/dlmbl/G-bs/runs/"+runname
 logger = SummaryWriter(runs_path)
 
@@ -21,15 +21,25 @@ sub = None
 #data directory for dataloading
 datadir = '/mnt/efs/dlmbl/G-bs/AvL/'
 #transforms for data
-transform = transforms.Compose([
+img_transform = transforms.Compose([
         transforms.RandSpatialCrop((56,72,72), random_size = False), #min size for AvL images is 59
         transforms.RandRotate90(prob = 0.75, spatial_axes = (1,2)),
-        transforms.RandRotate(prob = 0.1),
+        transforms.RandRotate(prob = 0.2, range_x = np.pi*90/180),
+        transforms.RandAxisFlip(prob = 0.75),
+        transforms.RandScaleIntensityFixedMean(prob=1.0, factors=(0,4))
+])
+
+
+mask_transform = transforms.Compose([
+        transforms.RandSpatialCrop((56,72,72), random_size = False), #min size for AvL images is 59
+        transforms.RandRotate90(prob = 0.75, spatial_axes = (1,2)),
+        transforms.RandRotate(prob = 0.1, range_x = np.pi*90/180, mode='nearest'),
         transforms.RandAxisFlip(prob = 0.75),
 ])
+
 #make datasets for training and validation
-train_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'train')
-val_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, transform = transform, traintestval = 'val')
+train_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, img_transform = img_transform, mask_transform=mask_transform, traintestval = 'train')
+val_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, img_transform = img_transform, mask_transform=mask_transform, traintestval = 'val')
 
 #sub set the datasets for short runs
 if sub:
@@ -39,7 +49,7 @@ if sub:
 
 #put datasets into dataloaders
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 
 #number of feature maps
 num_fmaps = 64
@@ -81,10 +91,10 @@ for epoch in range(n_epochs):
         train_dataloader,
         optimizer,
         epoch,
-        log_image_interval=20,
+        log_image_interval=50,
         tb_logger=logger,
         device=device,
-        loss_function= train.DiceCoefficient(), #torch.nn.BCELoss(),
+        loss_function= metrics.DiceCoefficient(), #torch.nn.BCELoss(),
     )
 
     torch.save(model.state_dict(), f'/mnt/efs/dlmbl/G-bs/models/{runname}_model_epoch_{epoch+1}.pth')
