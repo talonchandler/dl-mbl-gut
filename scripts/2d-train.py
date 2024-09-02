@@ -14,8 +14,7 @@ import datetime
 # Parameters
 n_epochs = 100
 batch_size = 40
-learning_rate = 1e-5
-
+learning_rate = 1e-6
 # Input paths
 base_path = Path("/mnt/efs/dlmbl/G-bs/data/")
 dataset_path = base_path / Path("all-downsample-8x.zarr")
@@ -24,7 +23,7 @@ split_path = base_path / Path("all-downsample-2x-split.csv")
 useful_chunk_path = base_path / Path("all-downsample-2x.csv")  # all non-zero data
 
 runs_path = Path("/mnt/efs/dlmbl/G-bs/runs/")
-run_name = datetime.datetime.now().strftime("%m-%d") + "-2d-large-fov-same"
+run_name = datetime.datetime.now().strftime("%m-%d") + "-2d-large-fov-same-lr1e-6"
 logger = SummaryWriter(runs_path / run_name)
 
 transform = RandRotate(range_x=np.pi / 16, prob=0.5, padding_mode="zeros")
@@ -80,6 +79,7 @@ for epoch in range(n_epochs):
         tb_logger=logger,
         device="cuda",
         loss_function=loss_function,
+        log_image_interval=100
     )
 
     torch.save(
