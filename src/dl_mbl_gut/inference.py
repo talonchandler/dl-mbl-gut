@@ -7,18 +7,23 @@ from dl_mbl_gut import model
 from dl_mbl_gut.dataloader import GutDataset
 
 
-def apply_model_to_yx_array(trained_model: GutDataset, input_yx_array):
-    input = torch.tensor(input_yx_array[None, None]).to("cpu")
-    output = trained_model(input).detach().numpy()
+def apply_model_to_yx_array(trained_model: GutDataset, input_yx_array, device="cpu"):
+    input = torch.tensor(input_yx_array[None, None]).to(device)
+    output = trained_model(input).detach().to("cpu").numpy()
     return output[0, 0]
 
 
 if __name__ == "__main__":
+    device = "cuda"
     model_path = Path(
-        "/mnt/efs/dlmbl/G-bs/models/09-01-2d-large-fov-same_model_epoch_10.pth"
+        # "/mnt/efs/dlmbl/G-bs/models/09-01-2d-large-fov-same_model_epoch_99.pth"
+        "/mnt/efs/dlmbl/G-bs/models/09-02-2d-large-fov-same-lr1e-6_model_epoch_100.pth"
     )
     input_path = Path("/mnt/efs/dlmbl/G-bs/data/all-downsample-8x.zarr")
-    output_path = Path("/mnt/efs/dlmbl/G-bs/data/all-downsample-8x-predictions.zarr")
+    # output_path = Path("/mnt/efs/dlmbl/G-bs/data/all-downsample-8x-predictions.zarr")
+    output_path = Path(
+        "/mnt/efs/dlmbl/G-bs/data/all-downsample-8x-predictions-lr1e-6.zarr"
+    )
 
     my_model = model.UNet(
         depth=4,
@@ -32,7 +37,7 @@ if __name__ == "__main__":
         ndim=2,
     )
     my_model.load_state_dict(torch.load(model_path), strict=False)
-    my_model.to("cpu")
+    my_model.to(device)
 
     input_dataset = open_ome_zarr(input_path, mode="r", layout="hcs")
     output_dataset = open_ome_zarr(
@@ -45,7 +50,7 @@ if __name__ == "__main__":
         for k in pos.zattrs.keys():
             out_position.zattrs[k] = pos.zattrs[k]
 
-        y_shape = int(np.floor(pos[0].shape[-2] / 8) * 8) 
+        y_shape = int(np.floor(pos[0].shape[-2] / 8) * 8)
         out_shape = (1, 1, pos[0].shape[-3]) + (y_shape, 1024)
         out_array = out_position.create_zeros(
             name="0",
@@ -61,8 +66,8 @@ if __name__ == "__main__":
         for i in range(pos[0].shape[-3]):
             raw = pos[0][0, channel_index, i]
             data = (raw - mean) / std
-            data_crop = data[:out_shape[-2], :out_shape[-1]]
+            data_crop = data[: out_shape[-2], : out_shape[-1]]
             print(f"\tProcessing z_slice {i}")
             out_array[0, 0, i] = apply_model_to_yx_array(
-                my_model, data_crop
+                my_model, data_crop, device=device
             )
