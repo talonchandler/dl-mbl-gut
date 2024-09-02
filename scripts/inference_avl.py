@@ -1,13 +1,18 @@
 import torch
+from torch.utils.data import Subset
 import numpy as np
+import pandas as pd
 import os
 from dl_mbl_gut import model_asym
 from dl_mbl_gut.dataloader_avl import NucleiDataset
 from aicsimageio.writers.ome_tiff_writer import OmeTiffWriter
+from dl_mbl_gut.metrics import DiceCoefficient
+from dl_mbl_gut.evaluation import f_beta
 
-downsample_factor = 8
+downsample_factor = [4,8]
+scans = np.arange(0.5,1,0.1)
 
-model_name = '3d_asym_avl_new_augs_model_epoch_6'
+model_name = '3d_asym_avl_new_augs_epoch5correctsave_model_epoch_3'
 model_path = f'/mnt/efs/dlmbl/G-bs/models/{model_name}.pth'
 input_path = '/mnt/efs/dlmbl/G-bs/AvL/'
 output_path = f'/mnt/efs/dlmbl/G-bs/AvL/pred/{model_name}/'
@@ -31,25 +36,45 @@ my_model = model_asym.UNet(
     constant_upsample = True,
     padding = 'same'
     )
-my_model.load_state_dict(torch.load(model_path), strict=False)
-my_model.eval()
-my_model.to("cpu")
+
 
 modseq = torch.nn.Sequential(
     my_model,
     torch.nn.Conv3d(num_fmaps, 1, 1),
     torch.nn.Sigmoid()
 )
+my_model.load_state_dict(torch.load(model_path), strict=False)
+my_model.eval()
+my_model.to("cpu")
+
 
 # get test data in a dataset
-test_data = NucleiDataset(root_dir = input_path, traintestval='test', downsample_factor=[4,8])
+test_data = NucleiDataset(root_dir = input_path, traintestval='test', downsample_factor=downsample_factor)
 
+ds = f_beta(beta = 1)
+dslist = []
 with torch.inference_mode():
-    for imname, crop, test_im, test_mask in test_data:
+    for imname, padd, test_im, test_mask in Subset(test_data, range(10)):
         prediction = modseq(test_im.unsqueeze(0))
-        test_im_ex = np.zeros(np.append([3],np.array(test_mask.squeeze().shape)))
-        test_im_ex[0,crop[0]:,crop[1]:,crop[2]:] = test_im
-        test_im_ex[1,:,:,:] = test_mask
-        test_im_ex[2,crop[0]:,crop[1]:,crop[2]:] = prediction.numpy()
-        OmeTiffWriter.save(prediction.numpy(), output_path + imname + '.ome.tiff')
-        print('Saved ', imname , '.ome.tiff')
+        fullshape = test_im.squeeze().shape
+        maskshape = test_mask.squeeze().shape
+        print(padd, padd[0]+maskshape[-3], fullshape, maskshape, test_im.shape, test_mask.shape)
+        test_im_ex = np.zeros(np.append([3],np.array(fullshape)))
+        test_im_ex[0,:,:,:] = test_im.numpy()
+        test_im_ex[1,padd[0]:padd[0]+maskshape[-3],
+                   padd[1]:padd[1]+maskshape[-2],
+                   padd[2]:padd[2]+maskshape[-1]] = test_mask.numpy()
+        test_im_ex[2,:,:,:] = prediction.numpy()
+        OmeTiffWriter.save(test_im_ex, output_path + imname + '.ome.tiff')
+        print('Saved', imname)
+        for s in scans:
+            dsmet = ds(test_im_ex[1]>s, test_im_ex[2]>s)
+            dslist.append({
+                'image': imname,
+                'dice_threshold': s,
+                'dice_value': dsmet
+            })
+        print('Recorded metrics for', imname)
+# save all of the metrics as a dataframe
+df = pd.DataFrame(dslist)
+df.to_csv(output_path + 'prediction_metrics.csv')

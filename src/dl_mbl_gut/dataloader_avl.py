@@ -12,8 +12,8 @@ class NucleiDataset(Dataset):
     def __init__(self, root_dir=".", transform=None, img_transform=None, mask_transform = None, traintestval = None, downsample_factor = None):
         self.root_dir = root_dir  # the directory with all the training samples
         self.df = pd.read_csv(self.root_dir + 'celldata.csv') #info about all of the cells
-        self.samples = self.df[self.df.trainclass == traintestval].cell.to_list()  # list the samples
-        self.traintestval = traintestval
+        self.samples = self.df[self.df.trainclass == traintestval.split('_inf')[0]].cell.to_list()  # list the samples
+        self.traintestval = traintestval # use 'train' or 'val' for training data or 'test', 'train_inf', or 'val_inf' for inference data
         self.downfact = downsample_factor
 
         self.transform = (
@@ -39,17 +39,19 @@ class NucleiDataset(Dataset):
     def __getitem__(self, idx):
         # we'll be using Pillow library for reading files
         # since many torchvision transforms operate on PIL images
-        img_path = os.path.join(
-        self.root_dir, 'raw/', self.samples[idx] + '_raw.tiff')
+        img_path = os.path.join(self.root_dir, 'raw/', self.samples[idx] + '_raw.tiff')
         image = TiffReader(img_path).data[1,:,:,:]
         image = image/np.percentile(image,99.5)
         # get the crop if and crop if making test data
-        if self.traintestval == 'test':
+        if self.traintestval in ['test','train_inf','val_inf']:
             oz, oy, ox = image.shape
-            z_shape, xy_shape = (np.floor(np.array([oz, min(oy,ox)])/ self.downfact) * self.downfact).astype(np.uint16)
-            image = image[:z_shape, :xy_shape, :xy_shape]
+            z_shape, xy_shape = (np.ceil(np.array([oz, max(oy,ox)])/ self.downfact) * self.downfact).astype(np.uint16)
+            zdiff, ydiff, xdiff = z_shape-oz, xy_shape - oy, xy_shape - ox
+            image = np.pad(image, ((int(np.floor(zdiff/2)), int(np.ceil(zdiff/2))), 
+                                (int(np.floor(ydiff/2)), int(np.ceil(ydiff/2))), 
+                                (int(np.floor(xdiff/2)), int(np.ceil(xdiff/2)))))
             #indices to insert the cropped image later
-            crop = np.array([oz,oy,ox]) - np.array([z_shape, xy_shape, xy_shape])
+            padd = (zdiff, ydiff, xdiff)
         image = self.inp_transforms(image[np.newaxis,...])
         mask_path = os.path.join(
             self.root_dir, 'seg/', self.samples[idx] + '_segmented.tiff')
@@ -70,8 +72,8 @@ class NucleiDataset(Dataset):
         if self.mask_transform is not None:
             self.mask_transform.set_random_state(seed)
             mask = self.mask_transform(mask)
-        if self.traintestval == 'test':
-            return self.samples[idx], crop, image, mask
+        if self.traintestval in ['test','train_inf','val_inf']:
+            return self.samples[idx], padd, image, mask
         else:
             return image, mask  
 
@@ -87,6 +89,7 @@ if __name__ == '__main__':
             transforms.CenterSpatialCrop((56,72,72)), #min size for AvL images is 59
             transforms.RandAxisFlip(prob = 0.75),
             transforms.RandScaleIntensityFixedMean(prob=1.0, factors=(0,4)),
+            transforms.RandGaussianNoise(prob=0.1, mean=0.0, std=1.0)
     ])
 
 

@@ -10,13 +10,17 @@ from torch.utils.tensorboard import SummaryWriter
 from dl_mbl_gut import dataloader_avl, model_asym, train, evaluation, metrics
 
 # tensorboard stuff
-runname = "3d_asym_avl_new_augs"
+runname = "3d_asym_avl_new_augs_noisecorrectsave"
 runs_path = "/mnt/efs/dlmbl/G-bs/runs/"+runname
 logger = SummaryWriter(runs_path)
+
+# load a specific state????
+model_path = None
 
 # batch size and subset of datasets, if desired, otherwise sub = None
 batch_size = 9
 sub = None
+
 
 #data directory for dataloading
 datadir = '/mnt/efs/dlmbl/G-bs/AvL/'
@@ -28,6 +32,7 @@ img_transform = transforms.Compose([
         transforms.CenterSpatialCrop((56,72,72)), #min size for AvL images is 59
         transforms.RandAxisFlip(prob = 0.75),
         transforms.RandScaleIntensityFixedMean(prob=1.0, factors=(0,4)),
+        transforms.RandGaussianNoise(prob=0.1, mean=0.0, std=1.0),
 ])
 
 
@@ -78,9 +83,13 @@ allmodel = nn.Sequential(
     nn.Sigmoid()
 )
 
+if model_path:
+    allmodel.load_state_dict(torch.load(model_path), strict=False)
+
+
 # setup rest of stuff for training loop
 scan = tuple(np.arange(0.5,1,0.1))
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005)
+optimizer = torch.optim.AdamW(allmodel.parameters(), lr=0.00005)
 validation_metric = evaluation.f_beta(beta=1)
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 n_epochs = 100
@@ -93,13 +102,13 @@ for epoch in range(n_epochs):
         train_dataloader,
         optimizer,
         epoch,
-        log_image_interval=50,
+        log_image_interval=20,
         tb_logger=logger,
         device=device,
         loss_function= metrics.DiceCoefficient(), #torch.nn.BCELoss(),
     )
 
-    torch.save(model.state_dict(), f'/mnt/efs/dlmbl/G-bs/models/{runname}_model_epoch_{epoch+1}.pth')
+    torch.save(allmodel.state_dict(), f'/mnt/efs/dlmbl/G-bs/models/{runname}_model_epoch_{epoch+1}.pth')
     print(f'Model weights saved for epoch {epoch+1}')
 
     evaluation.validate(
