@@ -1,19 +1,20 @@
 import torch
 import numpy as np
-
-from pathlib import Path
-from iohub import open_ome_zarr
-from dl_mbl_gut import model, model_asym
+import os
+from dl_mbl_gut import model_asym
 from dl_mbl_gut.dataloader_avl import NucleiDataset
-from dl_mbl_gut.inference import apply_model_to_zyx_array
 from aicsimageio.writers.ome_tiff_writer import OmeTiffWriter
 
 downsample_factor = 8
 
-model_name = 
+model_name = '3d_asym_avl_new_augs_model_epoch_6'
 model_path = f'/mnt/efs/dlmbl/G-bs/models/{model_name}.pth'
-input_path = '/mnt/efs/dlmbl/G-bs/data/AvL/raw'
-output_path = '/mnt/efs/dlmbl/G-bs/data/AvL/pred/'
+input_path = '/mnt/efs/dlmbl/G-bs/AvL/'
+output_path = f'/mnt/efs/dlmbl/G-bs/AvL/pred/{model_name}/'
+if not os.path.exists(output_path):
+    os.mkdir(output_path)
+
+num_fmaps = 64
 
 # setup model params
 my_model = model_asym.UNet(
@@ -31,17 +32,24 @@ my_model = model_asym.UNet(
     padding = 'same'
     )
 my_model.load_state_dict(torch.load(model_path), strict=False)
+my_model.eval()
 my_model.to("cpu")
 
+modseq = torch.nn.Sequential(
+    my_model,
+    torch.nn.Conv3d(num_fmaps, 1, 1),
+    torch.nn.Sigmoid()
+)
 
 # get test data in a dataset
-test_data = NucleiDataset(root_dir = input_path, traintestval='test', downsample_factor=[6,8])
+test_data = NucleiDataset(root_dir = input_path, traintestval='test', downsample_factor=[4,8])
 
-for crop, test_im, test_mask in test_data:
-
-    prediction = my_model(test_im)
-    test_im_ex = np.zeros(np.concat([[3],np.array(test_mask.shape)]))
-    test_im_ex[0,crop[0]:,crop[1]:,crop[2]:] = test_im
-    test_im_ex[1,:,:,:] = test_mask
-    test_im_ex[2,crop[0]:,crop[1]:,crop[2]:] = prediction.numpy()
-    OmeTiffWriter.save(prediction.numpy(), output_path
+with torch.inference_mode():
+    for imname, crop, test_im, test_mask in test_data:
+        prediction = modseq(test_im.unsqueeze(0))
+        test_im_ex = np.zeros(np.append([3],np.array(test_mask.squeeze().shape)))
+        test_im_ex[0,crop[0]:,crop[1]:,crop[2]:] = test_im
+        test_im_ex[1,:,:,:] = test_mask
+        test_im_ex[2,crop[0]:,crop[1]:,crop[2]:] = prediction.numpy()
+        OmeTiffWriter.save(prediction.numpy(), output_path + imname + '.ome.tiff')
+        print('Saved ', imname , '.ome.tiff')

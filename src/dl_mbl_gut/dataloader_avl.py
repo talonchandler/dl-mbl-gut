@@ -47,7 +47,6 @@ class NucleiDataset(Dataset):
         if self.traintestval == 'test':
             oz, oy, ox = image.shape
             z_shape, xy_shape = (np.floor(np.array([oz, min(oy,ox)])/ self.downfact) * self.downfact).astype(np.uint16)
-            print(z_shape, xy_shape, image.shape)
             image = image[:z_shape, :xy_shape, :xy_shape]
             #indices to insert the cropped image later
             crop = np.array([oz,oy,ox]) - np.array([z_shape, xy_shape, xy_shape])
@@ -72,7 +71,7 @@ class NucleiDataset(Dataset):
             self.mask_transform.set_random_state(seed)
             mask = self.mask_transform(mask)
         if self.traintestval == 'test':
-            return crop, image, mask
+            return self.samples[idx], crop, image, mask
         else:
             return image, mask  
 
@@ -82,18 +81,20 @@ if __name__ == '__main__':
     datadir = '/mnt/efs/dlmbl/G-bs/AvL/'
 
     img_transform = transforms.Compose([
-            transforms.RandSpatialCrop((56,72,72), random_size = False), #min size for AvL images is 59
+            transforms.RandSpatialCrop((56,102,102), random_size = False), #min size for AvL images is 59
             transforms.RandRotate90(prob = 0.75, spatial_axes = (1,2)),
             transforms.RandRotate(prob = 0.1, range_x = np.pi*90/180),
+            transforms.CenterSpatialCrop((56,72,72)), #min size for AvL images is 59
             transforms.RandAxisFlip(prob = 0.75),
-            transforms.RandScaleIntensity(prob=1.0, factors=(0,4))
+            transforms.RandScaleIntensityFixedMean(prob=1.0, factors=(0,4)),
     ])
 
 
     mask_transform = transforms.Compose([
-            transforms.RandSpatialCrop((56,72,72), random_size = False), #min size for AvL images is 59
+            transforms.RandSpatialCrop((56,102,102), random_size = False), #min size for AvL images is 59
             transforms.RandRotate90(prob = 0.75, spatial_axes = (1,2)),
             transforms.RandRotate(prob = 0.1, range_x = np.pi*90/180, mode='nearest'),
+            transforms.CenterSpatialCrop((56,72,72)), #min size for AvL images is 59
             transforms.RandAxisFlip(prob = 0.75),
     ])
 
