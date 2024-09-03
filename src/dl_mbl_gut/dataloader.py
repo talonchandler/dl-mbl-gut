@@ -90,6 +90,7 @@ class GutDataset(Dataset):
         data_channel_name: str = "BF_fluor_path",
         mask_channel_name: str = "label",
         z_split_width: int = 0,
+        z_stride: int = 1,
         x_split_width: int = 1024,
         patch_size: int = 256,
         transform=None,
@@ -107,6 +108,7 @@ class GutDataset(Dataset):
         self.mask_channel_name = mask_channel_name
         self.x_split_width = x_split_width
         self.z_split_width = z_split_width
+        self.z_stride = z_stride
         self.patch_size = patch_size
         self.transform = transform
         self.img_transform = img_transform
@@ -198,17 +200,20 @@ class GutDataset(Dataset):
         data = self.dataset[position_key][0][
             0,
             self.data_channel_index,
-            z_min:z_max,
+            z_min:z_max:self.z_stride,
             :,
             :,
         ][None]
         mask = self.dataset[position_key][0][
             0,
             self.mask_channel_index,
-            z_min:z_max,
+            z_min:z_max:self.z_stride,
             :,
             :,
         ][None]
+
+        z_out_shape = mask.shape[-3]
+        print(mask.shape, data.shape)
 
         if self.signed_distance_transform:
             interim_mask = compute_sdt(mask[0, 0], scale=10)[None, None]
@@ -220,7 +225,7 @@ class GutDataset(Dataset):
         outer_patch_size = np.ceil(self.patch_size * np.sqrt(2)).astype(int)
         y_crop_width = np.min([outer_patch_size, mask.shape[-2]])
         crop = RandCropByPosNegLabel(
-            (z_width, y_crop_width, outer_patch_size),
+            (z_out_shape, y_crop_width, outer_patch_size),
             None,
             pos=self.pos_frac,
             neg=1 - self.pos_frac,
@@ -241,7 +246,7 @@ class GutDataset(Dataset):
             mask = self.img_transform
 
         # Crop inner path
-        center_crop = CenterSpatialCrop((z_width, self.patch_size, self.patch_size))
+        center_crop = CenterSpatialCrop((z_out_shape, self.patch_size, self.patch_size))
         data = center_crop(data)
         mask = center_crop(mask)
 
@@ -282,9 +287,10 @@ if __name__ == "__main__":
         split_path=split_path,
         split_mode="train",
         data_channel_name="BF_fluor_path", #"Phase3D",
-        z_split_width=0,
+        z_split_width=23,
+        z_stride=3,
         useful_chunk_path=useful_chunk_path,
-        patch_size=164,
+        patch_size=256,
         transform=transform,
         signed_distance_transform=sdt,
         new_annotations=True,
