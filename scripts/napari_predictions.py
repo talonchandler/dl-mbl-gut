@@ -1,5 +1,6 @@
 # For viewing random patches
 import napari
+import random
 import numpy as np
 import os
 from aicsimageio.readers.ome_tiff_reader import OmeTiffReader
