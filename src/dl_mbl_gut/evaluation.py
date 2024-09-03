@@ -50,34 +50,33 @@ def validate(
 
     # running loss and metric values
     val_loss = 0
-    val_metric = 0
+    scan_val_metric = {k:0 for k in scan}
 
+    # disable gradients during validation
+    with torch.no_grad():
+        # iterate over validation loader and update loss and metric values
+        for x, y in loader:
+            print(x.shape, y.shape)
+            x, y = x.to(device), y.to(device)
+            prediction = model(x)
+            if y.dtype != prediction.dtype:
+                y = y.type(prediction.dtype)
+            if prediction.shape != y.shape:
+                y = center_crop(y, prediction)
+            val_loss += loss_function(prediction, y).item()
 
-    scan_val_loss = []
-    scan_val_metric = []
-    for s in scan:
-        # disable gradients during validation
-        with torch.no_grad():
-            # iterate over validation loader and update loss and metric values
-            for x, y in loader:
-                print(x.shape, y.shape)
-                x, y = x.to(device), y.to(device)
-                prediction = model(x)
-                if y.dtype != prediction.dtype:
-                    y = y.type(prediction.dtype)
-                if prediction.shape != y.shape:
-                    y = center_crop(y, prediction)
-                val_loss += loss_function(prediction, y).item()
-                val_metric += metric(prediction > s, y).item()
+            for s in scan:
+                scan_val_metric[s] += metric(prediction > s, y).item()
+
 
         # normalize loss and metric
         val_loss /= len(loader)
-        val_metric /= len(loader)
-        scan_val_loss.append(val_loss)
-        scan_val_metric.append(val_metric)
+        for s in scan:
+            scan_val_metric[s] = scan_val_metric[s]/len(loader)
+
+
     #get the max loss and metric in case you scanned multiple thresholds
-    val_loss = max(scan_val_loss)
-    val_metric = max(scan_val_metric)
+    val_metric = max(scan_val_metric.values())
     if (tb_logger is not None) and (len(x.shape)<=4):
         assert (
             step is not None
@@ -101,9 +100,8 @@ def validate(
             tag="val_metric", scalar_value=val_metric, global_step=step
         )
         if len(scan)>1:
-            for scanind in range(len(scan)):
-                tb_logger.add_scalar(f'val_loss_thresh_scan/{scan[scanind]}', scan_val_loss[scanind],global_step=step)
-                tb_logger.add_scalar(f'val_metric_thresh_scan/{scan[scanind]}', scan_val_metric[scanind], global_step=step)
+            for scanind in scan:
+                tb_logger.add_scalar(f'val_metric_thresh_scan/{scanind}', scan_val_metric[scanind], global_step=step)
         # we always log the last validation images
         tb_logger.add_images(tag="val_input", img_tensor=np.max(x.to("cpu").numpy(),axis=-3), global_step=step)
         tb_logger.add_images(tag="val_target", img_tensor=np.max(y.to("cpu").numpy(),axis=-3), global_step=step)

@@ -10,12 +10,12 @@ from torch.utils.tensorboard import SummaryWriter
 from dl_mbl_gut import dataloader_avl, model_asym, train, evaluation, metrics
 
 # tensorboard stuff
-runname = "3d_asym_avl_new_augs_noisecorrectsave"
+runname = "3d_asym_avl_new_augs_noisecorrectsaveepoch3onward"
 runs_path = "/mnt/efs/dlmbl/G-bs/runs/"+runname
 logger = SummaryWriter(runs_path)
 
 # load a specific state????
-model_path = None
+model_path = '/mnt/efs/dlmbl/G-bs/models/3d_asym_avl_new_augs_noisecorrectsave_model_epoch_2.pth'
 
 # batch size and subset of datasets, if desired, otherwise sub = None
 batch_size = 9
@@ -83,8 +83,6 @@ allmodel = nn.Sequential(
     nn.Sigmoid()
 )
 
-if model_path:
-    allmodel.load_state_dict(torch.load(model_path), strict=False)
 
 
 # setup rest of stuff for training loop
@@ -93,10 +91,12 @@ optimizer = torch.optim.AdamW(allmodel.parameters(), lr=0.00005)
 validation_metric = evaluation.f_beta(beta=1)
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 n_epochs = 100
+
+if model_path:
+    allmodel.load_state_dict(torch.load(model_path), strict=False)
+
 # training loop
 for epoch in range(n_epochs):
-
-
     train.train(
         allmodel,
         train_dataloader,
