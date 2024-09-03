@@ -10,10 +10,74 @@ from typing import Literal
 from monai.transforms import (
     RandRotate,
     RandCropByPosNegLabel,
+    RandWeightedCrop,
     NormalizeIntensity,
     CenterSpatialCrop,
+    RandGaussianSharpen,
+    Compose
 )
 import time
+from scipy.ndimage import distance_transform_edt, map_coordinates
+
+def compute_sdt(labels: np.ndarray, scale: int = 5):
+    """Function to compute a signed distance transform."""
+    dims = len(labels.shape)
+    # Create a placeholder array of infinite distances
+    distances = np.ones(labels.shape, dtype=np.float32) * np.inf
+    for axis in range(dims):
+        # Here we compute the boundaries by shifting the labels and comparing to the original labels
+        # This can be visualized in 1D as:
+        # a a a b b c c c
+        #   a a a b b c c c
+        #   1 1 0 1 0 1 1
+        # Applying a half pixel shift makes the result more obvious:
+        # a a a b b c c c
+        #  1 1 0 1 0 1 1
+        bounds = (
+            labels[*[slice(None) if a != axis else slice(1, None) for a in range(dims)]]
+            == labels[
+                *[slice(None) if a != axis else slice(None, -1) for a in range(dims)]
+            ]
+        )
+        # pad to account for the lost pixel
+        bounds = np.pad(
+            bounds,
+            [(1, 1) if a == axis else (0, 0) for a in range(dims)],
+            mode="constant",
+            constant_values=1,
+        )
+        # compute distances on the boundary mask
+        axis_distances = distance_transform_edt(bounds)
+
+        # compute the coordinates of each original pixel relative to the boundary mask and distance transform.
+        # Its just a half pixel shift in the axis we computed boundaries for.
+        coordinates = np.meshgrid(
+            *[
+                range(axis_distances.shape[a])
+                if a != axis
+                else np.linspace(0.5, axis_distances.shape[a] - 1.5, labels.shape[a])
+                for a in range(dims)
+            ],
+            indexing="ij",
+        )
+        coordinates = np.stack(coordinates)
+
+        # Interpolate the distances to the original pixel coordinates
+        sampled = map_coordinates(
+            axis_distances,
+            coordinates=coordinates,
+            order=3,
+        )
+
+        # Update the distances with the minimum distance to a boundary in this axis
+        distances = np.minimum(distances, sampled)
+
+    # Normalize the distances to be between -1 and 1
+    distances = np.tanh(distances / scale)
+
+    # Invert the distances for pixels in the background
+    distances[labels == 0] *= -1
+    return distances
 
 
 class GutDataset(Dataset):
@@ -32,6 +96,9 @@ class GutDataset(Dataset):
         img_transform=None,
         useful_chunk_path=None,
         ndim=3,
+        signed_distance_transform=False,
+        new_annotations=False,
+        pos_frac=0.5,
     ):
         self.root_dir = root_dir
         self.split_path = split_path
@@ -44,14 +111,19 @@ class GutDataset(Dataset):
         self.transform = transform
         self.img_transform = img_transform
         self.ndim = ndim
+        self.signed_distance_transform = signed_distance_transform
+        self.new_annotations = new_annotations
+        self.pos_frac = pos_frac
 
         self.dataset = open_ome_zarr(self.root_dir)
         self.fish_ids = []
+        self.in_focus_slices = []
         with open(self.split_path, "r") as f:
             for line in f.readlines():
                 row = line.strip().split(",")
                 if row[1] == self.split_mode:
                     self.fish_ids.append(row[0])
+                    self.in_focus_slices.append(int(row[-1]))
 
         self.data_channel_index = self.dataset.get_channel_index(data_channel_name)
         self.mask_channel_index = self.dataset.get_channel_index(mask_channel_name)
@@ -64,8 +136,9 @@ class GutDataset(Dataset):
             with open(useful_chunk_path, "r") as f:
                 for line in f.readlines():
                     row = line.strip().split(",")
-                    if row[0] in self.fish_ids:  # only use if in split
-                        self.item_keys.append(row)
+                    for i, fish_id in enumerate(self.fish_ids):
+                        if row[0] == fish_id: # only use if in split
+                            self.item_keys.append(row)
 
             # Clean types
             for row in self.item_keys:
@@ -79,6 +152,16 @@ class GutDataset(Dataset):
                     for x_start in range(0, x_width, self.x_split_width):
                         x_end = min(x_start + self.x_split_width, x_width)
                         self.item_keys.append((fish_id, z_index, x_start, x_end))
+
+        # Overwrite item keys with new annotations only 
+        if self.new_annotations: 
+            self.item_keys = []
+            for i, fish_id in enumerate(self.fish_ids):
+                row = (fish_id, self.in_focus_slices[i], 0, 1024)
+                self.item_keys.append(row)
+                print(row)
+
+
 
     def _find_useful_chunks(self, output_path: Path):
         """Read in all data and save the indices of chunks that contain a mask."""
@@ -126,6 +209,12 @@ class GutDataset(Dataset):
             :,
             :,
         ][None]
+
+        if self.signed_distance_transform:
+            interim_mask = compute_sdt(mask[0, 0], scale=10)[None, None]
+        else:
+            interim_mask = mask
+
         seed = np.random.randint(0, 100)
 
         outer_patch_size = np.ceil(self.patch_size * np.sqrt(2)).astype(int)
@@ -133,14 +222,14 @@ class GutDataset(Dataset):
         crop = RandCropByPosNegLabel(
             (z_width, y_crop_width, outer_patch_size),
             None,
-            pos=0.8,
-            neg=0.2,
+            pos=self.pos_frac,
+            neg=1 - self.pos_frac,
         )
 
         crop.set_random_state(seed)
         data = crop(data, label=mask)[0]
         crop.set_random_state(seed)
-        mask = crop(mask, label=mask)[0]
+        mask = crop(interim_mask, label=mask)[0]
 
         if self.transform is not None:
             self.transform.set_random_state(seed)
@@ -163,7 +252,8 @@ class GutDataset(Dataset):
         data = NormalizeIntensity(subtrahend=mean, divisor=std)(data[0])
         mask = mask[0]
 
-        mask = mask > 0
+        if not self.signed_distance_transform:
+            mask = mask > 0
 
         return data, mask
 
@@ -176,23 +266,28 @@ class GutDataset(Dataset):
 
 if __name__ == "__main__":
     base_path = Path("/mnt/efs/dlmbl/G-bs/data/")
-    dataset_path = Path("all-downsample-8x.zarr")
+    #dataset_path = Path("all-downsample-8x.zarr")
+    dataset_path = Path("all-downsample-8x-fix-annotation.zarr")
     # useful_chunk_path = base_path / Path("all-downsample-2x-masks-only.csv")
     useful_chunk_path = base_path / "all-downsample-2x-masks-only.csv"
 
     split_path = base_path / Path("all-downsample-2x-split.csv")
 
-    transform = RandRotate(range_x=np.pi / 16, prob=0.5, padding_mode="zeros")
+    transform = Compose([RandRotate(range_x=np.pi / 16, prob=0.5, padding_mode="zeros"), 
+                         RandGaussianSharpen(sigma1_x=(0, 3), sigma1_y=(0, 3), sigma1_z=(0, 0), sigma2_x=(0, 0), sigma2_y=(0, 0), sigma2_z=(0, 0), prob=0.5)])
 
+    sdt = False
     dataset = GutDataset(
         base_path / dataset_path,
         split_path=split_path,
-        split_mode="val",
-        data_channel_name="Phase3D",
+        split_mode="train",
+        data_channel_name="BF_fluor_path", #"Phase3D",
         z_split_width=0,
         useful_chunk_path=useful_chunk_path,
         patch_size=164,
         transform=transform,
+        signed_distance_transform=sdt,
+        new_annotations=True,
     )
     dataset.info()
 
@@ -227,6 +322,9 @@ if __name__ == "__main__":
         data, mask = next(iter(dataloader))
         print(data.shape, mask.shape)
         v.add_image(data, name="data")
-        v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
+        if sdt:
+            v.add_image(mask, name="mask", opacity=0.25, blending="additive")
+        else:
+            v.add_labels(np.uint8(mask), name="mask", opacity=0.25)
         input("Press Enter to continue...")
         v.layers.clear()

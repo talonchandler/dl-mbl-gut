@@ -20,16 +20,36 @@ def apply_model_to_zyx_array(trained_model: model_asym.UNet, input_zyx_array):
 
 
 if __name__ == "__main__":
-    device = "cuda"
+    device = "cpu"
+    epoch = 2
+    run_name = "09-02-2d-sdt"
+
     model_path = Path(
         # "/mnt/efs/dlmbl/G-bs/models/09-01-2d-large-fov-same_model_epoch_99.pth"
-        "/mnt/efs/dlmbl/G-bs/models/09-02-2d-large-fov-same-lr1e-6_model_epoch_100.pth"
+        # "/mnt/efs/dlmbl/G-bs/models/09-02-2d-large-fov-same-lr1e-6_model_epoch_100.pth"
+        "/mnt/efs/dlmbl/G-bs/models/"
+        + run_name
+        + "_model_epoch_"
+        + str(epoch)
+        + ".pth"
     )
     input_path = Path("/mnt/efs/dlmbl/G-bs/data/all-downsample-8x.zarr")
-    # output_path = Path("/mnt/efs/dlmbl/G-bs/data/all-downsample-8x-predictions.zarr")
+    # output_path = Path(
     output_path = Path(
-        "/mnt/efs/dlmbl/G-bs/data/all-downsample-8x-predictions-lr1e-6.zarr"
+        # "/mnt/efs/dlmbl/G-bs/data/all-downsample-8x-predictions.zarr")
+        # "/mnt/efs/dlmbl/G-bs/data/all-downsample-8x-predictions-lr1e-6.zarr"
+        "/mnt/efs/dlmbl/G-bs/data/predictions-"
+        + run_name
+        + "_"
+        + str(epoch)
+        + ".zarr"
     )
+
+
+    if "sdt" in run_name:
+        final_activation = torch.nn.Tanh()
+    else:
+        final_activation = torch.nn.Sigmoid()
 
     my_model = model.UNet(
         depth=4,
@@ -39,7 +59,7 @@ if __name__ == "__main__":
         num_fmaps=64,
         fmap_inc_factor=2,
         padding="same",
-        final_activation=torch.nn.Sigmoid(),
+        final_activation=final_activation,
         ndim=2,
     )
     my_model.load_state_dict(torch.load(model_path), strict=False)
