@@ -23,7 +23,7 @@ sub = None
 
 
 #data directory for dataloading
-datadir = '/mnt/efs/dlmbl/G-bs/AvL/'
+datadir = '/opt/dlami/nvme/AvL/'
 #transforms for data
 img_transform = transforms.Compose([
         transforms.RandSpatialCrop((56,102,102), random_size = False), #min size for AvL images is 59

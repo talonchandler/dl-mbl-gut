@@ -51,7 +51,7 @@ class NucleiDataset(Dataset):
                                 (int(np.floor(ydiff/2)), int(np.ceil(ydiff/2))), 
                                 (int(np.floor(xdiff/2)), int(np.ceil(xdiff/2)))))
             #indices to insert the cropped image later
-            padd = (zdiff, ydiff, xdiff)
+            padd = np.array([zdiff, ydiff, xdiff])
         image = self.inp_transforms(image[np.newaxis,...])
         mask_path = os.path.join(
             self.root_dir, 'seg/', self.samples[idx] + '_segmented.tiff')

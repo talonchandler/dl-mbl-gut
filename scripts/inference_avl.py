@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import Subset
+from torch.utils.data import Subset, DataLoader
 import numpy as np
 import pandas as pd
 import os
@@ -8,13 +8,15 @@ from dl_mbl_gut.dataloader_avl import NucleiDataset
 from aicsimageio.writers.ome_tiff_writer import OmeTiffWriter
 from dl_mbl_gut.metrics import DiceCoefficient
 from dl_mbl_gut.evaluation import f_beta
+from aicsimageio.writers.writer import Writer
 
+batch_size = 9
 downsample_factor = [4,8]
 scans = np.arange(0.5,1,0.1)
 
-model_name = '3d_asym_avl_new_augs_epoch5correctsave_model_epoch_3'
+model_name = '3d_asym_avl_new_augs_epoch5correctsave_model_epoch_2'
 model_path = f'/mnt/efs/dlmbl/G-bs/models/{model_name}.pth'
-input_path = '/mnt/efs/dlmbl/G-bs/AvL/'
+input_path = '/opt/dlami/nvme/AvL/'
 output_path = f'/mnt/efs/dlmbl/G-bs/AvL/pred/{model_name}/'
 if not os.path.exists(output_path):
     os.mkdir(output_path)
@@ -43,18 +45,22 @@ modseq = torch.nn.Sequential(
     torch.nn.Conv3d(num_fmaps, 1, 1),
     torch.nn.Sigmoid()
 )
-my_model.load_state_dict(torch.load(model_path), strict=False)
-my_model.eval()
-my_model.to("cpu")
+modseq.load_state_dict(torch.load(model_path), strict=False)
+modseq.eval()
+modseq.to("cpu")
 
 
 # get test data in a dataset
 test_data = NucleiDataset(root_dir = input_path, traintestval='test', downsample_factor=downsample_factor)
 
+#do it in batches
+test_dataloader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
+
 ds = f_beta(beta = 1)
 dslist = []
 with torch.inference_mode():
     for imname, padd, test_im, test_mask in Subset(test_data, range(10)):
+        padd = np.ceil(padd/2).astype(np.uint8)
         prediction = modseq(test_im.unsqueeze(0))
         fullshape = test_im.squeeze().shape
         maskshape = test_mask.squeeze().shape
