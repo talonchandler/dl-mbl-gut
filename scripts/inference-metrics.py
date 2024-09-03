@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 
-visualize = False
+visualize = True
 if visualize is True:
     v = napari.Viewer()
 
@@ -34,7 +34,7 @@ inference_channel_name = "prediction"
 split_data = pd.read_csv(split_path)
 print(split_data)
 
-# split_data = split_data[split_data["position"] == "20230728/infected/3"]
+split_data = split_data[split_data["position"] == "20230728/infected/3"]
 
 inference_thresholds = np.arange(0.25, 0.8, 0.05)
 for inference_threshold in inference_thresholds:

@@ -20,6 +20,16 @@ class f_beta(nn.Module):
         denominator = beta_term * tp + np.power(self.beta, 2) * fp + fn
         return numerator / denominator
 
+class DiceMetric(nn.Module):
+    def __init__(self, threshold=0):
+        super().__init__()
+        self.threshold = threshold
+
+    def forward(self, gt, pred):
+        pred = pred > self.threshold
+        intersection = np.sum(gt * pred)
+        union = np.sum(gt) + np.sum(pred)
+        return 2 * intersection / (union + 1e-6)
 
 def validate(
     model,
