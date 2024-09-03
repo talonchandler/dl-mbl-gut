@@ -3,7 +3,7 @@ import numpy as np
 
 from pathlib import Path
 from iohub import open_ome_zarr
-from dl_mbl_gut import model
+from dl_mbl_gut import model, model_asym
 from dl_mbl_gut.dataloader import GutDataset
 
 
@@ -11,6 +11,12 @@ def apply_model_to_yx_array(trained_model: GutDataset, input_yx_array, device="c
     input = torch.tensor(input_yx_array[None, None]).to(device)
     output = trained_model(input).detach().to("cpu").numpy()
     return output[0, 0]
+
+def apply_model_to_zyx_array(trained_model: model_asym.UNet, input_zyx_array):
+    input = torch.tensor(input_zyx_array[None, None, None]).to("cpu")
+    output = trained_model(input).detach().numpy()
+    return output[0, 0]
+
 
 
 if __name__ == "__main__":
