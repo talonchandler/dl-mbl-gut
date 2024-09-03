@@ -12,7 +12,7 @@ from dl_mbl_gut import dataloader, model, train, evaluation
 import datetime
 
 # Parameters
-n_epochs = 100
+n_epochs = 400
 batch_size = 40
 learning_rate = 1e-6
 # Input paths
@@ -23,9 +23,17 @@ split_path = base_path / Path("all-downsample-2x-split.csv")
 useful_chunk_path = base_path / Path("all-downsample-2x.csv")  # all non-zero data
 
 runs_path = Path("/mnt/efs/dlmbl/G-bs/runs/")
-run_name = datetime.datetime.now().strftime("%m-%d") + "-2d-large-fov-same-lr1e-6"
-logger = SummaryWriter(runs_path / run_name)
 
+load_from = "/mnt/efs/dlmbl/G-bs/models/09-02-2d-large-fov-same-lr1e-6_model_epoch_99.pth"
+if load_from is None:
+    exp_name = "-2d-large-fov-same-lr1e-6"
+    run_name = datetime.datetime.now().strftime("%m-%d") + exp_name
+    start_epoch = 0
+else:
+    run_name = load_from.split("/")[-1].split("_model_epoch_")[0]
+    start_epoch = int(load_from.split("/")[-1].split("_model_epoch_")[1].split(".pth")[0])
+
+logger = SummaryWriter(runs_path / run_name)
 transform = RandRotate(range_x=np.pi / 16, prob=0.5, padding_mode="zeros")
 
 train_dataset, val_dataset = [
@@ -65,7 +73,10 @@ loss_function = (
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 validation_metric = evaluation.f_beta(beta=1)
 
-for epoch in range(n_epochs):
+if load_from is not None:
+    model.load_state_dict(torch.load(load_from))
+
+for epoch in range(start_epoch, n_epochs,1):
     torch.save(
         model.state_dict(),
         f"/mnt/efs/dlmbl/G-bs/models/{run_name}_model_epoch_{epoch+1}.pth",
