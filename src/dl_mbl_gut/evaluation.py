@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 
 import numpy as np
-from dl_mbl_gut.train import DiceCoefficient, center_crop
+from dl_mbl_gut.metrics import DiceCoefficient
+from dl_mbl_gut.utils import center_crop
 
 
 class f_beta(nn.Module):

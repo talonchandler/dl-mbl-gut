@@ -1,5 +1,8 @@
 *DS_STORE
 
+#random module stuff to ignore from Aaron
+scripts/open_napari.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
