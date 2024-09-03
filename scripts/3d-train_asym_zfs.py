@@ -7,12 +7,13 @@ from torch.utils.data import DataLoader, Subset
 from torch import nn
 from monai import transforms
 from torch.utils.tensorboard import SummaryWriter
-from dl_mbl_gut import dataloader_avl, model_asym, train, evaluation, metrics
+from dl_mbl_gut import model_asym, train, evaluation, metrics
 
 # tensorboard stuff
 runname = "3d_asym_avl_new_augs_noisecorrectsaveepoch3onward"
 runs_path = "/mnt/efs/dlmbl/G-bs/runs/"+runname
 logger = SummaryWriter(runs_path)
+learning_rate = 0.00005
 
 # load a specific state????
 model_path = '/mnt/efs/dlmbl/G-bs/models/3d_asym_avl_new_augs_noisecorrectsave_model_epoch_2.pth'
@@ -25,28 +26,12 @@ sub = None
 #data directory for dataloading
 datadir = '/opt/dlami/nvme/AvL/'
 #transforms for data
-img_transform = transforms.Compose([
-        transforms.RandSpatialCrop((56,102,102), random_size = False), #min size for AvL images is 59
-        transforms.RandRotate90(prob = 0.75, spatial_axes = (1,2)),
-        transforms.RandRotate(prob = 0.1, range_x = np.pi*90/180),
-        transforms.CenterSpatialCrop((56,72,72)), #min size for AvL images is 59
-        transforms.RandAxisFlip(prob = 0.75),
-        transforms.RandScaleIntensityFixedMean(prob=1.0, factors=(0,4)),
-        transforms.RandGaussianNoise(prob=0.1, mean=0.0, std=1.0),
-])
+transform = 
 
-
-mask_transform = transforms.Compose([
-        transforms.RandSpatialCrop((56,102,102), random_size = False), #min size for AvL images is 59
-        transforms.RandRotate90(prob = 0.75, spatial_axes = (1,2)),
-        transforms.RandRotate(prob = 0.1, range_x = np.pi*90/180, mode='nearest'),
-        transforms.CenterSpatialCrop((56,72,72)), #min size for AvL images is 59
-        transforms.RandAxisFlip(prob = 0.75),
-])
 
 #make datasets for training and validation
-train_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, img_transform = img_transform, mask_transform=mask_transform, traintestval = 'train')
-val_dataset = dataloader_avl.NucleiDataset(root_dir=datadir, img_transform = img_transform, mask_transform=mask_transform, traintestval = 'val')
+train_dataset = 
+val_dataset = 
 
 #sub set the datasets for short runs
 if sub:
@@ -66,9 +51,9 @@ model = model_asym.UNet(
     in_channels = 1,
     num_fmaps = num_fmaps,
     fmap_inc_factor = 2,
-    downsample_factors = [(1,2,2),(2,2,2),(2,2,2)],
-    kernel_size_down = [[(1,3,3),(1,3,3),(1,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
-    kernel_size_up = [[(3,3,3),(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
+    downsample_factors = [(2,2,2),(2,2,2),(1,2,2)],
+    kernel_size_down = [[(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
+    kernel_size_up = [[(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(1,3,3),(1,3,3)]],
     activation = 'ReLU',
     fov = (1, 1, 1),
     voxel_size = (1, 1, 1),
@@ -85,9 +70,9 @@ allmodel = nn.Sequential(
 
 
 
-# setup rest of stuff for training loop
+##### setup rest of stuff for training loop
 scan = tuple(np.arange(0.5,1,0.1))
-optimizer = torch.optim.AdamW(allmodel.parameters(), lr=0.00005)
+optimizer = torch.optim.AdamW(allmodel.parameters(), lr=learning_rate)
 validation_metric = evaluation.f_beta(beta=1)
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 n_epochs = 100
