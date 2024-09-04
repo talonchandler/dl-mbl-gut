@@ -11,10 +11,13 @@ from dl_mbl_gut.evaluation import f_beta
 from aicsimageio.writers.writer import Writer
 
 batch_size = 9
-downsample_factor = [4,8]
+downsample_factor = [[4],[8]]
 scans = np.arange(0.5,1,0.1)
+whichdata = ['test', 'val_inf', 'train_inf']
 
-model_name = '3d_asym_avl_new_augs_epoch5correctsave_model_epoch_2'
+
+device = 'cuda'
+model_name = '3d_asym_avl_new_augs_noisecorrectsaveepoch3onward_model_epoch_13'
 model_path = f'/mnt/efs/dlmbl/G-bs/models/{model_name}.pth'
 input_path = '/opt/dlami/nvme/AvL/'
 output_path = f'/mnt/efs/dlmbl/G-bs/AvL/pred/{model_name}/'
@@ -47,40 +50,72 @@ modseq = torch.nn.Sequential(
 )
 modseq.load_state_dict(torch.load(model_path), strict=False)
 modseq.eval()
-modseq.to("cpu")
+modseq.to(device)
 
+setlist = []
+for w in whichdata:
+    setlist.append((w, NucleiDataset(root_dir = input_path, traintestval=w, downsample_factor=downsample_factor)))
+    if w == 'test':
+        testlen = len(setlist[-1][1])
+if 'testlen' not in globals():
+    testlen = 0
 
-# get test data in a dataset
-test_data = NucleiDataset(root_dir = input_path, traintestval='test', downsample_factor=downsample_factor)
+# # get test data in a dataset
+# test_data = NucleiDataset(root_dir = input_path, traintestval='test', downsample_factor=downsample_factor)
 
-#do it in batches
-test_dataloader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
 
 ds = f_beta(beta = 1)
 dslist = []
 with torch.inference_mode():
-    for imname, padd, test_im, test_mask in Subset(test_data, range(10)):
-        padd = np.ceil(padd/2).astype(np.uint8)
-        prediction = modseq(test_im.unsqueeze(0))
-        fullshape = test_im.squeeze().shape
-        maskshape = test_mask.squeeze().shape
-        print(padd, padd[0]+maskshape[-3], fullshape, maskshape, test_im.shape, test_mask.shape)
-        test_im_ex = np.zeros(np.append([3],np.array(fullshape)))
-        test_im_ex[0,:,:,:] = test_im.numpy()
-        test_im_ex[1,padd[0]:padd[0]+maskshape[-3],
-                   padd[1]:padd[1]+maskshape[-2],
-                   padd[2]:padd[2]+maskshape[-1]] = test_mask.numpy()
-        test_im_ex[2,:,:,:] = prediction.numpy()
-        OmeTiffWriter.save(test_im_ex, output_path + imname + '.ome.tiff')
-        print('Saved', imname)
-        for s in scans:
-            dsmet = ds(test_im_ex[1]>s, test_im_ex[2]>s)
-            dslist.append({
-                'image': imname,
-                'dice_threshold': s,
-                'dice_value': dsmet
-            })
-        print('Recorded metrics for', imname)
-# save all of the metrics as a dataframe
-df = pd.DataFrame(dslist)
-df.to_csv(output_path + 'prediction_metrics.csv')
+    for wd, datload in setlist:
+        #get equal length samples from each dataset
+        datlen = len(datload)
+        if wd == 'test':
+            anumb = testlen
+        else:
+            anumb = np.random.randint(testlen, datlen)
+        datload = Subset(datload, range(anumb-testlen, anumb))
+        #make the target directory if it doesn't exist
+        if not os.path.exists(output_path + wd + '/'):
+            os.mkdir(output_path + wd + '/')
+        #loop through and predict using the model
+        for i, (imname, padd, test_im, test_mask) in enumerate(datload):
+            print('Index #', i, padd, test_im.shape, test_mask.shape)
+            #skip images that are too large for GPU
+            if np.prod(test_im.shape)<7463000:
+                padd = np.ceil(padd/2).astype(np.uint8)
+                prediction = modseq(test_im.unsqueeze(0).to(device))
+                fullshape = test_im.squeeze().shape
+                maskshape = test_mask.squeeze().shape
+                test_im_ex = np.zeros(np.append([3],np.array(fullshape)))
+                test_im_ex[0,:,:,:] = test_im.to('cpu').numpy()
+                test_im_ex[1,padd[0]:padd[0]+maskshape[-3],
+                        padd[1]:padd[1]+maskshape[-2],
+                        padd[2]:padd[2]+maskshape[-1]] = test_mask.to('cpu').numpy()
+                test_im_ex[2,:,:,:] = prediction.to('cpu').numpy()
+                del prediction
+                OmeTiffWriter.save(test_im_ex, output_path + wd + '/' + imname + '.ome.tiff')
+                print('Saved', imname)
+                for s in scans:
+                    dsmet = ds(test_im_ex[1]>s, test_im_ex[2]>s)
+                    dslist.append({
+                        'image': imname,
+                        'dataset': wd.split('_inf')[0],
+                        'dice_threshold': s,
+                        'dice_value': dsmet
+                    })
+                print('Recorded', wd ,'metrics for', imname)
+                torch.cuda.empty_cache()
+            else:
+                for s in scans:
+                    dslist.append({
+                        'image': imname,
+                        'dataset': wd.split('_inf')[0],
+                        'dice_threshold': s,
+                        'dice_value': np.nan
+                    })
+                print('Skipped', wd ,'metrics for', imname)
+                
+            # save all of the metrics as a dataframe
+            df = pd.DataFrame(dslist)
+            df.to_csv(output_path + wd + '/' + 'prediction_metrics.csv')

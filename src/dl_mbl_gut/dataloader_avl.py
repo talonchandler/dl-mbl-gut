@@ -45,8 +45,8 @@ class NucleiDataset(Dataset):
         # get the crop if and crop if making test data
         if self.traintestval in ['test','train_inf','val_inf']:
             oz, oy, ox = image.shape
-            z_shape, xy_shape = (np.ceil(np.array([oz, max(oy,ox)])/ self.downfact) * self.downfact).astype(np.uint16)
-            zdiff, ydiff, xdiff = z_shape-oz, xy_shape - oy, xy_shape - ox
+            (z_shape,_), (y_shape, x_shape) = np.ceil(np.array([[oz,0], [oy,ox]])/ self.downfact) * self.downfact
+            zdiff, ydiff, xdiff = z_shape-oz, y_shape - oy, x_shape - ox
             image = np.pad(image, ((int(np.floor(zdiff/2)), int(np.ceil(zdiff/2))), 
                                 (int(np.floor(ydiff/2)), int(np.ceil(ydiff/2))), 
                                 (int(np.floor(xdiff/2)), int(np.ceil(xdiff/2)))))

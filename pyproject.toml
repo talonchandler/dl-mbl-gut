@@ -26,5 +26,7 @@ dependencies = [
     "iohub",
     "monai",
     "aicsimageio",
-    "pandas"
+    "pandas",
+    "seaborn",
+    "scikit-image"
 ]

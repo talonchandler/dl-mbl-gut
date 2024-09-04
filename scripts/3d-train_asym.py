@@ -10,12 +10,12 @@ from torch.utils.tensorboard import SummaryWriter
 from dl_mbl_gut import dataloader_avl, model_asym, train, evaluation, metrics
 
 # tensorboard stuff
-runname = "3d_asym_avl_new_augs_noisecorrectsaveepoch3onward"
+runname = "3d_asym_avl_shallow"
 runs_path = "/mnt/efs/dlmbl/G-bs/runs/"+runname
 logger = SummaryWriter(runs_path)
 
 # load a specific state????
-model_path = '/mnt/efs/dlmbl/G-bs/models/3d_asym_avl_new_augs_noisecorrectsave_model_epoch_2.pth'
+model_path = None
 
 # batch size and subset of datasets, if desired, otherwise sub = None
 batch_size = 9
@@ -66,9 +66,9 @@ model = model_asym.UNet(
     in_channels = 1,
     num_fmaps = num_fmaps,
     fmap_inc_factor = 2,
-    downsample_factors = [(1,2,2),(2,2,2),(2,2,2)],
-    kernel_size_down = [[(1,3,3),(1,3,3),(1,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
-    kernel_size_up = [[(3,3,3),(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
+    downsample_factors = [(1,2,2),(2,2,2)],
+    kernel_size_down = [[(1,3,3),(1,3,3),(1,3,3)], [(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
+    kernel_size_up = [[(3,3,3),(3,3,3),(3,3,3)], [(3,3,3),(3,3,3)]],
     activation = 'ReLU',
     fov = (1, 1, 1),
     voxel_size = (1, 1, 1),
