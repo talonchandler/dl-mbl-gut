@@ -4,8 +4,13 @@ import tifffile as tiff
 import matplotlib.pyplot as plt
 from matplotlib.animation import PillowWriter
 
+######## test 0.4663145587227351 20240805_488_EGFP-CAAX_640_SPY650-DNA_cell3-04-Subset-07_frame_5
+######## '20240805_488_EGFP-CAAX_640_SPY650-DNA_cell3-04-Subset-07_frame_6.ome.tiff' #test 0.237
+######## 20240805_488_EGFP-CAAX_640_SPY650-DNA_cell1-06-Subset-01_frame_12 test 0.652
+######## test 0.4244868097559315 20240805_488_EGFP-CAAX_640_SPY650-DNA_cell3-02-Subset-02_frame_1
+######## test 0.8567451901227087 20240805_488_EGFP-CAAX_640_SPY650-DNA_cell2-05-Subset-04_frame_44
+######## test 0.8234030946670245 20240805_488_EGFP-CAAX_640_SPY650-DNA_cell2-05-Subset-01_frame_25
 
-lowestdicecell = '20240805_488_EGFP-CAAX_640_SPY650-DNA_cell3-04-Subset-07_frame_6.ome.tiff' #test
 tiff_path = f'/opt/dlami/nvme/AvL/goodpred/test/{lowestdicecell}'
 
 videoname = '20240805_488_EGFP-CAAX_640_SPY650-DNA_cell3-04-Subset-07_frame_6_lowestdice.gif'
