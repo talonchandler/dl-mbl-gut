@@ -12,14 +12,23 @@ visualize = True
 if visualize is True:
     v = napari.Viewer()
 
-run_name = "lr1e-6"
+# run_name = "lr1e-6_137"
+three_d = True
+run_name = "09-03-3d-unet_model_epoch_861"
+# run_name = "2d-new-annotations_5000"
 
 input_path = Path("/mnt/efs/dlmbl/G-bs/data/all-downsample-8x.zarr")
 inference_path = Path(
-    "/mnt/efs/dlmbl/G-bs/data/all-downsample-8x-predictions-" + run_name + ".zarr"
+    "/mnt/efs/dlmbl/G-bs/data/predictions-"
+    + run_name
+    + ".zarr"
+    # "/mnt/efs/dlmbl/G-bs/data/predictions-09-02-2d-large-fov-same-"
+    # + run_name
+    # + ".zarr"
+    # "/mnt/efs/dlmbl/G-bs/data/predictions-09-03-2d-new-annotations_5000.zarr"
 )
 split_path = Path("/mnt/efs/dlmbl/G-bs/data/all-downsample-2x-split.csv")
-output_path = Path("/mnt/efs/dlmbl/G-bs/data/results/guts/09-01/")
+output_path = Path("/mnt/efs/dlmbl/G-bs/data/results/guts/09-03/")
 
 if not output_path.exists():
     output_path.mkdir(parents=True)
@@ -31,12 +40,13 @@ data_channel_name = "BF_fluor_path"
 mask_channel_name = "label"
 inference_channel_name = "prediction"
 
+
 split_data = pd.read_csv(split_path)
 print(split_data)
 
 split_data = split_data[split_data["position"] == "20230728/infected/3"]
 
-inference_thresholds = np.arange(0.25, 0.8, 0.05)
+inference_thresholds = [0.05] # np.arange(0.05, 0.6, 0.1)
 for inference_threshold in inference_thresholds:
     print(f"Inference threshold: {inference_threshold:.2f}")
     for _, row in split_data.iterrows():
@@ -53,12 +63,22 @@ for inference_threshold in inference_thresholds:
         # Compute metric
         mask = mask[:, : infer.shape[-2], : infer.shape[-1]]
 
+        if three_d:
+            mask = mask[best_slice - 24 : best_slice + 24 : 3]
+            data = data[best_slice - 24 : best_slice + 24 : 3]
+
         infer = torch.tensor(infer[None, None]).to("cuda")
         mask = torch.tensor(mask[None, None]).to("cuda")
-        metric = 1 - evaluation.DiceCoefficient()(infer > inference_threshold, mask > 0)
-        metric = metric.to("cpu").numpy()
 
-        # print(f"{id}, dice : {metric:.2f}, label: {row['label']}")
+        try:
+            metric = 1 - evaluation.DiceCoefficient()(
+                infer > inference_threshold, mask > 0
+            )
+            metric = metric.to("cpu").numpy()
+        except:
+            metric = np.nan
+
+        print(f"{id} \t dice : {metric:.2f} \t label: {row['label']}")
         split_data.loc[split_data["position"] == id, "dice_coefficient"] = metric
 
         # Visualize
@@ -83,6 +103,7 @@ for inference_threshold in inference_thresholds:
             input("Press Enter to continue...")
             v.layers.clear()
 
+    split_data.dropna(inplace=True)
     split_data.to_csv(output_path / "split_data.csv", index=False)
 
     # Load data from file

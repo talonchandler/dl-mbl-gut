@@ -461,7 +461,6 @@ class UNet(torch.nn.Module):
         return fs_out
 
     def forward(self, x):
-
         y = self.rec_forward(self.num_levels - 1, x)
 
         if self.num_heads == 1:

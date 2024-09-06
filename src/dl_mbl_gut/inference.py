@@ -12,17 +12,17 @@ def apply_model_to_yx_array(trained_model: GutDataset, input_yx_array, device="c
     output = trained_model(input).detach().to("cpu").numpy()
     return output[0, 0]
 
-def apply_model_to_zyx_array(trained_model: model_asym.UNet, input_zyx_array):
-    input = torch.tensor(input_zyx_array[None, None, None]).to("cpu")
-    output = trained_model(input).detach().numpy()
-    return output[0, 0]
 
+def apply_model_to_zyx_array(trained_model: model_asym.UNet, input_zyx_array, device="cpu"):
+    input = torch.tensor(input_zyx_array[None, None, None]).to(device)
+    output = trained_model(input).detach().to("cpu").numpy()
+    return output[0, 0]
 
 
 if __name__ == "__main__":
     device = "cpu"
-    epoch = 2
-    run_name = "09-02-2d-sdt"
+    epoch = 5000#30000
+    run_name = "09-03-2d-new-annotations"
 
     model_path = Path(
         # "/mnt/efs/dlmbl/G-bs/models/09-01-2d-large-fov-same_model_epoch_99.pth"
@@ -44,7 +44,6 @@ if __name__ == "__main__":
         + str(epoch)
         + ".zarr"
     )
-
 
     if "sdt" in run_name:
         final_activation = torch.nn.Tanh()

@@ -260,6 +260,10 @@ class GutDataset(Dataset):
         if not self.signed_distance_transform:
             mask = mask > 0
 
+        if self.z_stride > 0:
+            data = torch.unsqueeze(data, dim=0)
+            mask = torch.unsqueeze(mask, dim=0)
+
         return data, mask
 
     def info(self):
@@ -281,19 +285,19 @@ if __name__ == "__main__":
     transform = Compose([RandRotate(range_x=np.pi / 16, prob=0.5, padding_mode="zeros"), 
                          RandGaussianSharpen(sigma1_x=(0, 3), sigma1_y=(0, 3), sigma1_z=(0, 0), sigma2_x=(0, 0), sigma2_y=(0, 0), sigma2_z=(0, 0), prob=0.5)])
 
-    sdt = False
+    sdt = True
     dataset = GutDataset(
         base_path / dataset_path,
         split_path=split_path,
         split_mode="train",
         data_channel_name="BF_fluor_path", #"Phase3D",
-        z_split_width=23,
-        z_stride=3,
+        z_split_width=0,#23,
+        z_stride=1,#3,
         useful_chunk_path=useful_chunk_path,
         patch_size=256,
         transform=transform,
         signed_distance_transform=sdt,
-        new_annotations=True,
+        new_annotations=False,
     )
     dataset.info()
 
