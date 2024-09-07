@@ -264,6 +264,197 @@ class GutDataset(Dataset):
             print(f"Position {key}\t has shape \t{pos[0].shape}.")
 
 
+class MultiScaleGutDataset(Dataset):
+
+    def __init__(
+        self,
+        root_dirs: tuple[Path,Path],
+        split_path: Path,
+        split_mode: Literal["train", "val", "test", None] = "train",
+        data_channel_name: str = "BF_fluor_path",
+        mask_channel_name: str = "label",
+        z_split_width: int = 0,
+        x_split_width: int = 1024,
+        patch_size_high: int = 256,
+        patch_size_low: int = 132,
+        transform=None,
+        img_transform=None,
+        useful_chunk_path=None,
+        ndim=3,
+        signed_distance_transform=False,
+        new_annotations=False,
+        pos_frac=0.5,
+    ):
+        self.root_dir = root_dirs
+        self.split_path = split_path
+        self.split_mode = split_mode
+        self.data_channel_name = data_channel_name
+        self.mask_channel_name = mask_channel_name
+        self.x_split_width = x_split_width
+        self.z_split_width = z_split_width
+        self.patch_size_high = patch_size_high
+        self.patch_size_low = patch_size_low
+        self.transform = transform
+        self.img_transform = img_transform
+        self.ndim = ndim
+        self.signed_distance_transform = signed_distance_transform
+        self.new_annotations = new_annotations
+        self.pos_frac = pos_frac
+
+        self.dataset_highres = open_ome_zarr(self.root_dir[0])
+        self.dataset_lowres = open_ome_zarr(self.root_dir[1])
+        self.fish_ids = []
+        self.in_focus_slices = []
+        with open(self.split_path, "r") as f:
+            for line in f.readlines():
+                row = line.strip().split(",")
+                if row[1] == self.split_mode:
+                    self.fish_ids.append(row[0])
+                    self.in_focus_slices.append(int(row[-1]))
+
+        self.data_channel_index = self.dataset_highres.get_channel_index(data_channel_name)
+        self.mask_channel_index = self.dataset_highres.get_channel_index(mask_channel_name)
+
+        # Split into x_split_width sized chunks
+        self.item_keys = []
+
+        # If useful_chunk_table is not None, load the indices from the file
+        if useful_chunk_path is not None:
+            with open(useful_chunk_path, "r") as f:
+                for line in f.readlines():
+                    row = line.strip().split(",")
+                    for i, fish_id in enumerate(self.fish_ids):
+                        if row[0] == fish_id: # only use if in split
+                            self.item_keys.append(row)
+
+            # Clean types
+            for row in self.item_keys:
+                row[1:] = [int(val) for val in row[1:]]
+
+        else:
+            for fish_id, position in self.dataset_highres.positions():  # fish id
+                z_width = position[0].shape[-3]
+                x_width = position[0].shape[-1]
+                for z_index in range(z_width):
+                    for x_start in range(0, x_width, self.x_split_width):
+                        x_end = min(x_start + self.x_split_width, x_width)
+                        self.item_keys.append((fish_id, z_index, x_start, x_end))
+
+        # Overwrite item keys with new annotations only 
+        if self.new_annotations: 
+            self.item_keys = []
+            for i, fish_id in enumerate(self.fish_ids):
+                row = (fish_id, self.in_focus_slices[i], 0, 1024)
+                self.item_keys.append(row)
+                print(row)
+
+
+
+    def _find_useful_chunks(self, output_path: Path):
+        """Read in all data and save the indices of chunks that contain a mask."""
+        useful_item_keys = []
+        for i in tqdm(range(len(self))):
+            data, mask = self[i]
+            if np.max(data) > 0:  # and np.max(mask) > 0:
+                print("Found useful chunk.")
+                useful_item_keys.append(self.item_keys[i])
+
+        print(f"Found {len(useful_item_keys)} useful chunks.")
+        with open(output_path, "w") as f:
+            for item_key in useful_item_keys:
+                f.write(f"{item_key[0]},{item_key[1]},{item_key[2]},{item_key[3]}\n")
+
+    def __len__(self):
+        return len(self.item_keys)
+
+    def __getitem__(self, idx: int):
+        position_key, z_index, x_start, x_end = self.item_keys[idx]
+
+        # Always get a valid z range
+        z_shape = self.dataset_highres[position_key][0].shape[-3]
+        z_width = 2 * self.z_split_width + 1
+        z_min = z_index - self.z_split_width
+        z_max = z_index + self.z_split_width + 1
+        if z_min <= 0:
+            z_min = 0
+            z_max = 2 * self.z_split_width + 1
+        if z_max >= z_shape:
+            z_min = z_shape - 2 * self.z_split_width - 1 - 2  # kludge
+            z_max = z_shape - 2
+
+        data = self.dataset_highres[position_key][0][
+            0,
+            self.data_channel_index,
+            z_min:z_max,
+            :,
+            :,
+        ][None]
+        datalow = self.dataset_lowres[position_key][0][
+            0,
+            self.data_channel_index,
+            z_min:z_max,
+            :,:,
+        ][None]
+        mask = self.dataset_highres[position_key][0][
+            0,
+            self.mask_channel_index,
+            z_min:z_max,
+            :,
+            :,
+        ][None]
+
+        if self.signed_distance_transform:
+            interim_mask = compute_sdt(mask[0, 0], scale=10)[None, None]
+        else:
+            interim_mask = mask
+
+        seed = np.random.randint(0, 100)
+
+        outer_patch_size = np.ceil(self.patch_size_high * np.sqrt(2)).astype(int)
+        y_crop_width = np.min([outer_patch_size, mask.shape[-2]])
+        crop = RandCropByPosNegLabel(
+            (z_width, y_crop_width, outer_patch_size),
+            None,
+            pos=self.pos_frac,
+            neg=1 - self.pos_frac,
+        )
+
+        crop.set_random_state(seed)
+        data = crop(data, label=mask)[0]
+        crop.set_random_state(seed)
+        mask = crop(interim_mask, label=mask)[0]
+
+        if self.transform is not None:
+            self.transform.set_random_state(seed)
+            data = self.transform(data)
+            self.transform.set_random_state(seed)
+            mask = self.transform(mask)
+        if self.img_transform is not None:
+            data = self.img_transform(data)
+            mask = self.img_transform
+
+        # Crop inner path
+        center_crop = CenterSpatialCrop((z_width, self.patch_size_high, self.patch_size_high))
+        data = center_crop(data)
+        mask = center_crop(mask)
+
+        # Normalize the data
+        mean = self.dataset_highres[position_key].zattrs[self.data_channel_name + "_mean"]
+        std = self.dataset_highres[position_key].zattrs[self.data_channel_name + "_std"]
+
+        data = NormalizeIntensity(subtrahend=mean, divisor=std)(data[0])
+        mask = mask[0]
+
+        if not self.signed_distance_transform:
+            mask = mask > 0
+
+        return data, mask
+
+    def info(self):
+        print(f"Found {len(self)} items.")
+        for position in self.dataset_highres.positions():
+            key, pos = position
+            print(f"Position {key}\t has shape \t{pos[0].shape}.")
 if __name__ == "__main__":
     base_path = Path("/mnt/efs/dlmbl/G-bs/data/")
     #dataset_path = Path("all-downsample-8x.zarr")
